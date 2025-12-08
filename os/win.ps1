@@ -707,17 +707,7 @@ function win_declutter_bell_sounds() {
 
 function win_declutter_web_search_and_widgets() {
     log_msg "win_declutter_web_search_and_widgets"
-    $search_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
-    
-    # win 11
-    # https://www.tomshardware.com/how-to/disable-windows-web-search
-    winget list --accept-source-agreements -q "MicrosoftWindows.Client.WebExperience_cw5n1h2txyew" | Out-Null
-    if ($?) { winget.exe uninstall MicrosoftWindows.Client.WebExperience_cw5n1h2txyewy }
-    # win 10
-    # https://www.bennetrichter.de/en/tutorials/windows-10-disable-web-search/
-    Set-ItemProperty -Path "$search_key" -Name 'BingSearchEnabled' -Value 0 -Type Dword
-    $search_key2 = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\SearchSettings'
-    Set-ItemProperty -Path "$search_key2" -Name 'IsDynamicSearchBoxEnabled' -Value 0 -Type Dword
+    winget_uninstall 9PC1H9VN18CM # start experiences
 }
 
 function win_declutter_explorer_listing_files() {
