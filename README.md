@@ -1,6 +1,7 @@
-# ps-sh-helpers
+# cli-helpers
 
-`ps-sh-helpers` ps-sh-helpers is library to organise your PowerShell and Bash helper scripts. It organise them in OS-dependent from `os/` files and program-dependent from `programs/` files. It is initialized at `.bashrc` by loading `init.sh` or at `profile.ps1` by loading `init.ps1` (see diagram below).
+`cli-helpers` cli-helpers is library to organise your helper scripts. It organise them in OS-dependent from `os/` files and program-dependent from `programs/` files.
+It can be used at: **bash shell** by loading `init.sh` at `.bashrc`; or at **powershell** by loading `init.ps1` `profile.ps1` (see diagram below).
 
 **from bash:**
 
@@ -52,20 +53,20 @@ flowchart LR
 
 ## Setup at your bash profile
 
-You can use the Bash commands below to fetch, install, and setup `ps-sh-helpers` to be loaded in your `.bashrc`:
+You can use the Bash commands below to fetch, install, and setup `cli-helpers` to be loaded in your `.bashrc`:
 
 ```bash
-git clone https://github.com/alanlivio/ps-sh-helpers ~/ps-sh-helpers
-. ~/ps-sh-helpers/setup_profile_loading.ps1
+git clone https://github.com/alanlivio/cli-helpers ~/cli-helpers
+. ~/cli-helpers/setup_profile_loading.ps1
 ```
 
 ## Setup at your PowerShell profile
 
-You can use the PowerShell commands below to fetch, install, and setup `ps-sh-helpers` to be loaded in your `profile.ps1`:
+You can use the PowerShell commands below to fetch, install, and setup `cli-helpers` to be loaded in your `profile.ps1`:
 
 ```bash
-git clone https://github.com/alanlivio/ps-sh-helpers ${env:userprofile}\ps1-sh-helpers
-. ~/ps-sh-helpers/setup_profile_loading.sh
+git clone https://github.com/alanlivio/cli-helpers ${env:userprofile}\ps1-sh-helpers
+. ~/cli-helpers/setup_profile_loading.sh
 ```
 
 ## References
