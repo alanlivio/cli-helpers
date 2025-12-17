@@ -75,7 +75,7 @@ function ssh_fix_permisisons() {
     # https://stackoverflow.com/questions/9270734/ssh-permissions-are-too-open
     chmod 700 $HOME/.ssh/
     chmod 600 $HOME/.ssh/id_rsa
-    chmod 600 $HOME/.ssh/id_rsa.pubssh-rsa
+    chmod 600 $HOME/.ssh/id_rsa.pub
 }
 
 # -- admin --
