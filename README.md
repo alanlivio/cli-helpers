@@ -1,7 +1,7 @@
 # cli-helpers
 
 `cli-helpers` cli-helpers is library to organise your helper scripts. It organise them in OS-dependent from `os/` files and program-dependent from `programs/` files.
-It can be used at: **bash shell** by loading `init.sh` at `.bashrc`; or at **powershell** by loading `init.ps1` `profile.ps1` (see diagram below).
+It can be used at: **bash shell** by loading [`init.sh`](init.sh) from your `.bashrc`; or at **powershell** by loading [`init.ps1`](init.ps1) from your `profile.ps1` (see diagram below).
 
 **from bash:**
 
