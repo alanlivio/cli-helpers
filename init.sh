@@ -6,7 +6,6 @@ source "$HELPERS_DIR/os/any.bash"
 
 if [[ $OSTYPE == msys* || -n $WSL_DISTRO_NAME ]]; then
     source "$HELPERS_DIR/os/win.bash"
-    # ps_def_funcs_from_ps1_file "$HELPERS_DIR/os/win.ps1"
 fi
 if [[ $OSTYPE == linux* && -d '/etc/lsb-release' ]]; then
     source "$HELPERS_DIR/os/ubu.bash"
