@@ -741,7 +741,6 @@ function win_declutter_taskbar_startmenu() {
     $touch_key = "HKCU:\Software\Microsoft\TabletTip\1.7"
     
     # taskbar
-    # https://www.askvg.com/disable-or-remove-extra-icons-and-buttons-from-windows-11-taskbar
     Set-ItemProperty -Path $advanced_key -Name "ShowTaskViewButton" -Value 0 -Type Dword
     Set-ItemProperty -Path $advanced_key -Name "TaskbarMn" -Value 0 -Type Dword
     Set-ItemProperty -Path $advanced_key -Name "ShowCopilotButton" -Value 0 -Type Dword
@@ -753,11 +752,16 @@ function win_declutter_taskbar_startmenu() {
     Set-ItemProperty -Path $pen_key -Name "PenWorkspaceButtonDesiredVisibility" -Type DWord -Value 0 -Force | Out-Null
     Set-ItemProperty -Path $touch_key -Name "TipbandDesiredVisibility" -Type DWord -Value 0 -Force | Out-Null
 
-    # multitasking
-    # https://www.itechtics.com/disable-edge-tabs-alt-tab
+    # taskbar multitasking
+    Set-ItemProperty -Path $advanced_key -Name MMTaskbarEnabled -Value 0 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name MMTaskbarMode -Value 2 -Type DWord
     Set-ItemProperty -Path $advanced_key -Name "MultiTaskingAltTabFilter" -Value 3 -Type Dword
-    # https://superuser.com/questions/1516878/how-to-disable-windows-snap-assist-via-command-line
     Set-ItemProperty -Path $advanced_key -Name "SnapAssist" -Value 0 -Type Dword
+    
+    # taskbar search
+    $search_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
+    Set-ItemProperty -Path $search_key -Name "SearchboxTaskbarMode" -Type DWord -Value 0 -Force | Out-Null
+    Set-ItemProperty -Path $search_key -Name "SearchboxTaskbarModeCache" -Type DWord -Value 0 -Force | Out-Null
     
     # startmenu
     Set-ItemProperty -Path $start_key -Name "ShowRecentList" -Value 0 -Type DWord
@@ -765,16 +769,10 @@ function win_declutter_taskbar_startmenu() {
     Set-ItemProperty -Path $advanced_key -Name "Start_TrackDocs" -Value 0 -Type DWord
     Set-ItemProperty -Path $advanced_key -Name "Start_IrisRecommendations" -Value 0 -Type DWord
     Set-ItemProperty -Path $advanced_key -Name "Start_AccountNotifications" -Type DWord -Value 0
-
-    # search
-    $search_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
-    Set-ItemProperty -Path $search_key -Name "SearchboxTaskbarMode" -Type DWord -Value 0 -Force | Out-Null
-    Set-ItemProperty -Path $search_key -Name "SearchboxTaskbarModeCache" -Type DWord -Value 0 -Force | Out-Null
 }
 
 function win_declutter_xbox() {
     log_msg "win_declutter_xbox"
-    # https://www.makeuseof.com/windows-new-app-ms-gamingoverlay-error/
     $game_dvr_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR"
     $game_store_key = "HKCU:\System\GameConfigStore"
 
