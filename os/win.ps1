@@ -260,23 +260,20 @@ function explorer_restart() {
 }
 
 function explorer_reset_shell_folders {
-    $folders_expandable = @{
-        "My Music"    = "%USERPROFILE%\Music"
-        "Personal"    = "%USERPROFILE%\Documents"
-        "My Video"    = "%USERPROFILE%\Videos"
-        "My Pictures" = "%USERPROFILE%\Pictures"
+    $reg_path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+    $map = @{
+        Desktop   = "{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}"
+        Documents = "{FDD39AD0-238F-46AF-ADB4-6C85480369C7}"
+        Pictures  = "{33E28130-4E1E-4676-835A-98395C3BC3BB}"
+        Music     = "{4BD8D571-6D19-48D3-BE97-422220080E43}"
+        Videos    = "{18989B1D-99B5-455B-841C-AB7C74E4DDFC}"
     }
-    $path_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
-    New-Item -Path $path_key -Force | Out-Null
-    foreach ($name in $folders_expandable.Keys) {
-        $expand_value = $folders_expandable[$name]
-        $real_path = [Environment]::ExpandEnvironmentVariables($expand_value)
-        Set-ItemProperty -Path $path_key -Name $name -Value $expand_value -Type ExpandString -Force | Out-Null
-        if (-not (Test-Path -LiteralPath $real_path)) {
-            New-Item -ItemType Directory -Path $real_path -Force | Out-Null
-        }
+    foreach ($name in $map.Keys) {
+        $path = "$env:USERPROFILE\$name"
+        New-Item -ItemType Directory -Force -Path $path | Out-Null
+        Set-ItemProperty $reg_path $name $path
+        Set-ItemProperty $reg_path $map[$name] $path
     }
-    explorer_restart
 }
 
 
@@ -309,20 +306,6 @@ function explorer_hide_home_dotfiles {
         if (-not $i.Attributes.HasFlag($hidden)) { $i.Attributes = $i.Attributes -bor $hidden }
     }
 }
-
-function explorer_hide_unused_and_shell_folders {
-    $folders = foreach ($r in $roots) { foreach ($s in $subs) { Join-Path $r $s } }
-    $folders_extra = 'CrossDevice', 'vimfiles', 'vscode-remote-wsl', 'Contacts', 'Music', 'Games', 'Videos', 'Links', 'Favorites', 'Saved Games', 'Searches' |
-    ForEach-Object { Join-Path $env:userprofile $_ }
-    $paths = $folders + $folders_extra
-    $paths = $paths | Sort-Object -Unique | Where-Object { Test-Path -LiteralPath $_ }
-    $hidden = [IO.FileAttributes]::Hidden
-    foreach ($p in $paths) {
-        $i = Get-Item -LiteralPath $p -Force
-        if (-not $i.Attributes.HasFlag($hidden)) { $i.Attributes = $i.Attributes -bor $hidden }
-    }
-}
-
 
 # -- wsl --
 
