@@ -729,17 +729,10 @@ function win_declutter_taskbar_startmenu() {
     Set-ItemProperty -Path $advanced_key -Name "ShowCopilotButton" -Value 0 -Type Dword
     Set-ItemProperty -Path $advanced_key -Name "UseCompactMode" -Value 1 -Type Dword
     Set-ItemProperty -Path $advanced_key -Name "ShowStatusBar" -Value 1 -Type Dword
-    Set-ItemProperty -Path $advanced_key -Name "TaskbarAI" -Value 0 -Type Dword
-    Set-ItemProperty -Path $advanced_key -Name "TaskbarBadges" -Value 0 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "TaskbarFlashing" -Value 0 -Type Dword
     Set-ItemProperty -Path $advanced_key -Name "TaskbarAnimations" -Value 0 -Type Dword
     Set-ItemProperty -Path $pen_key -Name "PenWorkspaceButtonDesiredVisibility" -Type DWord -Value 0 -Force | Out-Null
     Set-ItemProperty -Path $touch_key -Name "TipbandDesiredVisibility" -Type DWord -Value 0 -Force | Out-Null
-
-    # taskbar multitasking
-    Set-ItemProperty -Path $advanced_key -Name MMTaskbarEnabled -Value 0 -Type DWord
-    Set-ItemProperty -Path $advanced_key -Name MMTaskbarMode -Value 2 -Type DWord
-    Set-ItemProperty -Path $advanced_key -Name "MultiTaskingAltTabFilter" -Value 3 -Type Dword
-    Set-ItemProperty -Path $advanced_key -Name "SnapAssist" -Value 0 -Type Dword
     
     # taskbar search
     $search_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
