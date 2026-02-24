@@ -1,13 +1,12 @@
 function ffmpeg_cut_mp4 {
     param([string]$video, [string]$beginTime, [string]$endTime)
-    if (-not $PSBoundParameters.Keys.Count) { log_error "Usage: $($MyInvocation.MyCommand.Name) <video> <begin_time_in_format_00:00:00> <end_time_in_format_00:00:00>"; return }
+    if ($PSBoundParameters.Keys.Count -le 3) { log_error "Usage: $($MyInvocation.MyCommand.Name) <video> <begin_time_in_format_00:00:00> <end_time_in_format_00:00:00>"; return }
     $fname_no_ext = [System.IO.Path]::GetFileNameWithoutExtension($video)
     $extension = [System.IO.Path]::GetExtension($video)
     ffmpeg.exe -i "$video" -vcodec copy -acodec copy -ss "$beginTime" -t "$endTime" -f mp4 "$fname_no_ext (cuted)$extension"
 }
 
 function ffmpeg_convert_to_mp4_960x540 {
-    if (-not $PSBoundParameters.Keys.Count) { log_error "Usage: $($MyInvocation.MyCommand.Name) <video> <begin_time_in_format_00:00:00> <end_time_in_format_00:00:00>"; return }
     param([string]$video)
     if (-not $PSBoundParameters.Keys.Count) { log_error "Usage: $($MyInvocation.MyCommand.Name) <video>"; return }
     $fname_no_ext = [System.IO.Path]::GetFileNameWithoutExtension($video)
@@ -16,7 +15,7 @@ function ffmpeg_convert_to_mp4_960x540 {
 
 function ffmpeg_convert_to_mp4_960x540_cutted_until {
     param([string]$video, [string]$cutUntilTime)
-    if (-not $PSBoundParameters.Keys.Count) { log_error "Usage: $($MyInvocation.MyCommand.Name) <video> <XX:YY:ZZ>"; return }
+    if ($PSBoundParameters.Keys.Count -le 3) { log_error "Usage: $($MyInvocation.MyCommand.Name) <video> <XX:YY:ZZ>"; return }
     $fname_no_ext = [System.IO.Path]::GetFileNameWithoutExtension($video)
     ffmpeg.exe -i "$video" -ss 00:00:00 -t "$cutUntilTime" -vf "scale=960:540" -c:v libx264 -c:a aac "$fname_no_ext (converted).mp4"
 }
@@ -50,7 +49,7 @@ function ffmpeg_extract_key_frames {
 
 function ffmpeg_mp4_files_merge {
     param([string[]]$files)
-    if (-not $PSBoundParameters.Keys.Count) { throw "Usage: $($MyInvocation.MyCommand.Name)  <file1> ..."; return }
+    if (-not $PSBoundParameters.Keys.Count) { throw "Usage: $($MyInvocation.MyCommand.Name) <file1> ..."; return }
     $fileList = $files | ForEach-Object { "file '$((Resolve-Path $_).Path)'" }
     $tempFile = [System.IO.Path]::GetTempFileName() + ".txt"
     $fileList | Set-Content $tempFile

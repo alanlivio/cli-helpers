@@ -12,7 +12,7 @@ function ffmpeg_convert_to_mp4_960x540() {
 }
 
 function ffmpeg_convert_to_mp4_960x540_cutted_until() {
-    : ${1?"Usage: ${FUNCNAME[0]} <video> <XX:YY:ZZ>"}
+    : ${2?"Usage: ${FUNCNAME[0]} <video> <XX:YY:ZZ>"}
     local fname_no_ext="${1%.*}"
     ffmpeg -i "$1" -ss 00:00:00 -t "$2" -vf "scale=960:540" -c:v libx264 -c:a aac "$fname_no_ext (converted).mp4"
 }
