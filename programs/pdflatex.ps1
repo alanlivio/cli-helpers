@@ -1,5 +1,5 @@
 function latex_clean() {
-    Remove-Item -f comment.cut ./*.aux ./*.dbx ./*.bbx ./*.cbx ./*.dvi ./*.log ./*.lox ./*.out ./*.lol ./*.pdf ./*.synctex.gz ./_minted-* ./*.bbl ./*.blg ./*.lot ./*.lof ./*.toc ./*.lol ./*.fdb_latexmk ./*.fls ./*.bcf ./*.aux ./*.fls ./*.fdb_latexmk ./*.log
+    Remove-Item -Force comment.cut, *.aux, *.dbx, *.bbx, *.cbx, *.dvi, *.log, *.lox, *.out, *.lol, *.pdf, *.synctex.gz, _minted-*, *.bbl, *.blg, *.lot, *.lof, *.toc, *.fdb_latexmk, *.fls, *.bcf -ErrorAction SilentlyContinue 
 }
 
 function latex_word_count() {
