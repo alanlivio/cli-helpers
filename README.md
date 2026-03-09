@@ -1,6 +1,6 @@
 # cli-helpers
 
-`cli-helpers` is a library to organise your bash and powershell helper scripts. It loads scripts at `os/` given OS and load scripts at `programs/` if the given program exists. To use the library, you need setup the loading of [`init.sh`](init.sh) from your `.bashrc` and [`init.ps1`](init.ps1) from your `profile.ps1`. The diagram below overview the library behaviour.
+`cli-helpers` is a library for organizing your Bash and PowerShell helper scripts. It automatically loads scripts from the `os/` directory based on your current operating system, and from the `programs/` directory if a specific program is installed. To use the library, you need to load [`init.sh`](init.sh) in your `.bashrc` and [`init.ps1`](init.ps1) in your PowerShell `$PROFILE`. The diagrams below provide an overview of the library's behavior.
 
 **from bash:**
 
@@ -50,7 +50,7 @@ flowchart LR
     %%ps-init --> |"3: create ps1 alias to functions at"| sh-init
 ```
 
-## Setup at your bash profile
+## Bash Setup
 
 You can use the Bash commands below to fetch, install, and setup `cli-helpers` to be loaded in your `.bashrc`:
 
@@ -59,14 +59,18 @@ git clone https://github.com/alanlivio/cli-helpers ~/cli-helpers
 . ~/cli-helpers/setup_profile_loading.sh
 ```
 
-## Setup at your PowerShell profile
+## PowerShell Setup
 
 You can use the PowerShell commands below to fetch, install, and setup `cli-helpers` to be loaded in your `profile.ps1`:
 
 ```powershell
 git clone https://github.com/alanlivio/cli-helpers $env:USERPROFILE\cli-helpers
-. $env:USERPROFILE\cli-helpers\setup_profile_loading.ps1
+& $env:USERPROFILE\cli-helpers\setup_profile_loading.ps1
 ```
+
+## Adding Custom Scripts
+
+To add a script that only loads when a specific program is installed (e.g., `docker`), simply create a file at `programs/docker.bash` or `programs/docker.ps1`. The library handles the rest and will automatically load it when the program is detected!
 
 ## References
 
