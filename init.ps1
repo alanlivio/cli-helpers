@@ -6,7 +6,7 @@ $HELPERS_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 $is_windows = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
 $is_linux = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Linux)
-$is_ubuntu = $is_linux -and (Test-Path '/etc/lsb-release')
+$is_ubuntu = $is_linux -and (Test-Path '/etc/lsb-release' -PathType Leaf)
 if ($is_windows) {
     . (Join-Path $helpers_dir 'os\win.ps1')
 }

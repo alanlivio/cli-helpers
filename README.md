@@ -56,16 +56,16 @@ You can use the Bash commands below to fetch, install, and setup `cli-helpers` t
 
 ```bash
 git clone https://github.com/alanlivio/cli-helpers ~/cli-helpers
-. ~/cli-helpers/setup_profile_loading.ps1
+. ~/cli-helpers/setup_profile_loading.sh
 ```
 
 ## Setup at your PowerShell profile
 
 You can use the PowerShell commands below to fetch, install, and setup `cli-helpers` to be loaded in your `profile.ps1`:
 
-```bash
-git clone https://github.com/alanlivio/cli-helpers ${env:userprofile}\ps1-sh-helpers
-. ~/cli-helpers/setup_profile_loading.sh
+```powershell
+git clone https://github.com/alanlivio/cli-helpers $env:USERPROFILE\cli-helpers
+. $env:USERPROFILE\cli-helpers\setup_profile_loading.ps1
 ```
 
 ## References

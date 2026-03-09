@@ -7,7 +7,7 @@ source "$HELPERS_DIR/os/any.bash"
 if [[ $OSTYPE == msys* || -n $WSL_DISTRO_NAME ]]; then
     source "$HELPERS_DIR/os/win.bash"
 fi
-if [[ $OSTYPE == linux* && -d '/etc/lsb-release' ]]; then
+if [[ $OSTYPE == linux* && -f '/etc/lsb-release' ]]; then
     source "$HELPERS_DIR/os/ubu.bash"
 fi
 
