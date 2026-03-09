@@ -27,7 +27,7 @@ function python_check_numa() {
 function python_packaging_install_local() {
     pip show setuptools &>/dev/null || pip install setuptools
     [[ -d dist ]] && rm -r dist
-    [[ -d build ]] && rm -r dist
+    [[ -d build ]] && rm -r build
     python -m build . --wheel
     pip install dist/*.whl --force-reinstall
 }
@@ -36,7 +36,7 @@ function python_packaging_upload_testpypi() {
     pip show setuptools &>/dev/null || pip install setuptools
     pip show twine &>/dev/null || pip install twine
     [[ -d dist ]] && rm -r dist
-    [[ -d build ]] && rm -r dist
+    [[ -d build ]] && rm -r build
     rm -rf ./*.egg-info
     python -m build . --wheel
     twine check dist/*
@@ -47,14 +47,14 @@ function python_packaging_upload_pypip() {
     pip show setuptools &>/dev/null || pip install setuptools
     pip show twine &>/dev/null || pip install twine
     [[ -d dist ]] && rm -r dist
-    [[ -d build ]] && rm -r dist
+    [[ -d build ]] && rm -r build
     python -m build . --wheel
     twine check dist/*
     twine upload dist/*
 }
 
 function python_pyright_stubs_from_requirements_txt() {
-    pip show pyright &>/dev/null || pip install twine
+    pip show pyright &>/dev/null || pip install pyright
     pip show requirements-parser >/dev/null || pip install requirements-parser
     local pkgs=$(python -c "import requirements; import os; names=[req.name for req in requirements.parse(open('requirements.txt', 'r'))]; print(' '.join(names))")
     for pkg in $pkgs; do
