@@ -72,6 +72,14 @@ git clone https://github.com/alanlivio/cli-helpers $env:USERPROFILE\cli-helpers
 
 To add a script that only loads when a specific program is installed (e.g., `docker`), simply create a file at `programs/docker.bash` or `programs/docker.ps1`. The library handles the rest and will automatically load it when the program is detected!
 
+## Running Tests
+
+This project includes automated tests to ensure all subfiles can be safely loaded without syntax errors. To run the them, do:
+
+```bash
+python -m unittest discover -s tests
+```
+
 ## References
 
 This project takes inspiration from:

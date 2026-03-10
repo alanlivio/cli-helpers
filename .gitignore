@@ -1,0 +1,4 @@
+.history
+.ionide
+__pycache__/
+*.pyc
