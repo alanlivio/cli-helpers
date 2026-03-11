@@ -4,10 +4,17 @@ function git_clone_to() {
     local basedir=$2
     local email=$3
     local dir=$basedir/${1##*/}
-    if [[ ! -d $dir ]]; then
+    if [[ -d $dir ]]; then
+        (
+            cd "$dirb" 
+            log_msg "git pull at $dir"
+            git pull -q
+        )
+    else
         if [[ ! -d $basedir ]]; then mkdir -p $basedir; fi
         log_msg "git clone $url at $dir"
         git clone $url $dir
+
     fi
     if [[ -n $email ]]; then
     (

@@ -8,7 +8,12 @@ function git_clone_to() {
         log_error "Usage: git_clone_to <url> <basedir> [<email>]. Use <email> to differ from ~/.gitconfig email."; return 
     }
     $dir = Join-Path $basedir (Split-Path $url -Leaf)
-    if (-not (Test-Path $dir)) {
+    if (Test-Path $dir) {
+        Push-Location $dir
+        log_msg "git pull at $dir"
+        git pull -q
+        Pop-Location
+    } else {
         if (-not (Test-Path $basedir)) {
             New-Item -Path $basedir -ItemType Directory -Force
         }
