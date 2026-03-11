@@ -10,18 +10,18 @@ permissions:
 
 jobs:
   python-tests:
-    name: Python Tests
-    runs-on: windows-latest
-
+    name: Python Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-
       - name: Run tests
-        shell: powershell
         run: python -m unittest discover -s tests
