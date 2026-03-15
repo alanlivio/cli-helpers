@@ -1,3 +1,18 @@
+function create_hardlink {
+    param(
+        $target_path,
+        $source_path
+    )
+    if (Test-Path $target_path) {
+        Remove-Item $target_path -Force
+    }
+    New-Item -ItemType HardLink -Path $target_path -Value $source_path -Force | Out-Null
+    $item = Get-Item $target_path
+    if ($item.LinkType -ne "HardLink") {
+        Write-Error "File at $target_path is not a hardlink"
+    }
+}
+
 # -- os_upgrade --
 
 function win_os_upgrade() {
