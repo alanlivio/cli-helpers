@@ -377,6 +377,20 @@ function wsl_fix_metadata() {
 
 # -- office --
 
+function win_office_disable_zoom {
+    $paths = @(
+        "HKCU:\Software\Microsoft\Office\Outlook\Addins\ZoomOutlookAddIn",
+        "HKLM:\SOFTWARE\Microsoft\Office\Outlook\Addins\ZoomOutlookAddIn",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Office\Outlook\Addins\ZoomOutlookAddIn"
+    )
+
+    foreach ($path in $paths) {
+        if (Test-Path $path) {
+            Set-ItemProperty -Path $path -Name "LoadBehavior" -Value 0
+        }
+    }    
+}
+
 function win_office_disable_warn_local_link {
     # requireq admin
     $keys = @(
