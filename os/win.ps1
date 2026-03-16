@@ -72,6 +72,22 @@ function win_admin_romove_current_user() {
 
 # -- install -- 
 
+function win_reinstall_vscode {
+    winget uninstall Microsoft.VisualStudioCode --silent --force
+    $vscode_data_paths = @(
+        "$env:APPDATA\Code",
+        "$env:LOCALAPPDATA\Code",
+        "$env:USERPROFILE\.vscode",
+        "$env:TEMP\vscode-update"
+    )
+    foreach ($path in $vscode_data_paths) {
+        if (Test-Path $path) {
+            Remove-Item -Recurse -Force $path
+        }
+    }
+    winget install Microsoft.VisualStudioCode --silent
+}
+
 function win_install_exe_from_zip() {
     # if the basename of extractPath exist inside extracted Path so get from inside that folder
     # For example: win_install_exe_from_zip ""...\vlc-3.0.21.zip" "...\bin\vlc-3.0.21" "vlc.exe" 
