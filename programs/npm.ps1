@@ -1,3 +1,7 @@
+function npm_list_installed {
+    npm list -g --depth=0
+}   
+
 function md_folder_all_mmd_to_svg {
     npm install -g @mermaid-js/mermaid-cli
     Get-ChildItem . -Recurse -Filter *.mmd | ForEach-Object {
