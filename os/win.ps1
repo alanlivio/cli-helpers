@@ -185,7 +185,6 @@ function win_install_node() {
 }
 
 function win_install_latex() {
-    winget_install MikTex.MikTex
     # install perl required by latexmk 
     if (Test-Path "$env:LOCALAPPDATA\Programs\StrawberryPerl") { return; } 
     $api_url = "https://api.github.com/repos/StrawberryPerl/Perl-Dist-Strawberry/releases/latest"
@@ -198,12 +197,14 @@ function win_install_latex() {
     log_msg "download and extracting StrawberryPerl (~15min)"
     win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\StrawberryPerl" "perl\bin\perl.exe"
     log_msg "download and extracting finished"
-    win_path_add("${env:localappdata}\Programs\StrawberryPerl\perl\bin")
+    win_path_add("${env:LOCALAPPDATA}\Programs\StrawberryPerl\perl\bin")
+    # install miktex
+    winget_install MikTex.MikTex
 }
 
 function win_install_ffmpeg() {
     winget_install Gyan.FFmpeg
-    win_path_add("${env:localappdata}\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-7.1.1-full_build\bin")
+    win_path_add("${env:LOCALAPPDATA}\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-7.1.1-full_build\bin")
 }
 
 function win_install_vim() {
@@ -242,7 +243,7 @@ function winget_uninstall() {
 
 function winget_fix_installation() {
     sudo {
-        Remove-Item -Recurse "${env:localappdata}\Temp\WinGet\"  -Force -ErrorAction SilentlyContinue
+        Remove-Item -Recurse "${env:LOCALAPPDATA}\Temp\WinGet\"  -Force -ErrorAction SilentlyContinue
         Remove-Item -Recurse "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe" -Force -ErrorAction SilentlyContinue
         Remove-Item -Recurse "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*"  -Force -ErrorAction SilentlyContinue
         winget source update
