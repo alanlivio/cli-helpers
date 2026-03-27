@@ -278,6 +278,7 @@ function win_path_add($addPath) {
     $arrPath = $path -split ';' | Where-Object { $_ -notMatch "^$regexAddPath\\?" }
     $newpath = ($arrPath + $addPath) -join ';'
     [Environment]::SetEnvironmentVariable("path", $newpath, 'User')
+    $env:path = [Environment]::GetEnvironmentVariable("path", "User") + ";" + [Environment]::GetEnvironmentVariable("path", "Machine")
 }
 
 function win_path_list() {
