@@ -267,6 +267,13 @@ function win_env_list() {
 
 # -- path --
 
+function win_path_cleanup() {
+    $path = [Environment]::GetEnvironmentVariable("Path", "User")
+    $filter = ($path -split ';' | Where-Object { Test-Path $_ }) -join ';'
+    [Environment]::SetEnvironmentVariable("Path", $filter, "User")
+    win_path_reload
+}
+
 function win_path_reload() {
     $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", [System.EnvironmentVariableTarget]::Machine) + ";" + [System.Environment]::GetEnvironmentVariable("PATH", [System.EnvironmentVariableTarget]::User)
 }
