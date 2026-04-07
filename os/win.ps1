@@ -150,6 +150,13 @@ function win_install_vlc() {
     win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\$pkg_name\vlc.exe"
 }
 
+function win_install_flutter() {
+    if (Test-Path "$env:LOCALAPPDATA\Programs\flutter\bin\flutter.bat") { return; }
+    $url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.41.6-stable.zip"
+    win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\flutter" "bin\flutter.bat"
+    win_path_add "$env:LOCALAPPDATA\Programs\flutter\bin"
+}
+
 function win_install_obs() {
     if (Test-Path "$env:LOCALAPPDATA\Programs\OBS\bin\64bit\obs64.exe") { return; }
     $api_url = "https://api.github.com/repos/obsproject/obs-studio/releases/latest"
