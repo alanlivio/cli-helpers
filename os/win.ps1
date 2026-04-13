@@ -204,14 +204,14 @@ function win_install_latex() {
     log_msg "download and extracting StrawberryPerl (~15min)"
     win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\StrawberryPerl" "perl\bin\perl.exe"
     log_msg "download and extracting finished"
-    win_path_add("${env:LOCALAPPDATA}\Programs\StrawberryPerl\perl\bin")
+    win_path_add("$env:LOCALAPPDATA\Programs\StrawberryPerl\perl\bin")
     # install miktex
     winget_install MikTex.MikTex
 }
 
 function win_install_ffmpeg() {
     winget_install Gyan.FFmpeg
-    win_path_add("${env:LOCALAPPDATA}\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-7.1.1-full_build\bin")
+    win_path_add("$env:LOCALAPPDATA\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-7.1.1-full_build\bin")
 }
 
 function win_install_vim() {
@@ -250,7 +250,7 @@ function winget_uninstall() {
 
 function winget_fix_installation() {
     sudo {
-        Remove-Item -Recurse "${env:LOCALAPPDATA}\Temp\WinGet\"  -Force -ErrorAction SilentlyContinue
+        Remove-Item -Recurse "$env:LOCALAPPDATA\Temp\WinGet\"  -Force -ErrorAction SilentlyContinue
         Remove-Item -Recurse "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe" -Force -ErrorAction SilentlyContinue
         Remove-Item -Recurse "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*"  -Force -ErrorAction SilentlyContinue
         winget source update
@@ -343,7 +343,7 @@ IconIndex=0
 }
 
 function explorer_hide_home_dotfiles {
-    $paths = Get-ChildItem -LiteralPath $env:userprofile -Force -ErrorAction SilentlyContinue |
+    $paths = Get-ChildItem -LiteralPath $env:USERPROFILE -Force -ErrorAction SilentlyContinue |
     Where-Object { $_.Name -like '.*' -or $_.Name -like '*.lock' } |
     Select-Object -ExpandProperty FullName
     $paths = $paths | Where-Object { Test-Path -LiteralPath $_ }
@@ -513,7 +513,7 @@ function win_system_enable_ssh_agent() {
     Set-Service ssh-agent -StartupType Automatic
     Start-Service ssh-agent
     Get-Service ssh-agent
-    ssh-add "${env:userprofile}\\.ssh\\id_rsa"
+    ssh-add "$env:USERPROFILE\\.ssh\\id_rsa"
 }
 
 # -- onedrive --
@@ -647,15 +647,15 @@ function win_declutter_ui() {
 
 function win_declutter_home_folders() {
     $paths = @(
-        "${env:userprofile}\Cookies"
-        "${env:userprofile}\Local Settings"
-        "${env:userprofile}\My Documents"
-        "${env:userprofile}\Start Menu"
-        "${env:userprofile}\PrintHood"
-        "${env:userprofile}\Recent"
-        "${env:userprofile}\SendTo"
-        "${env:userprofile}\NetHood"
-        "${env:userprofile}\Templates"
+        "$env:USERPROFILE\Cookies"
+        "$env:USERPROFILE\Local Settings"
+        "$env:USERPROFILE\My Documents"
+        "$env:USERPROFILE\Start Menu"
+        "$env:USERPROFILE\PrintHood"
+        "$env:USERPROFILE\Recent"
+        "$env:USERPROFILE\SendTo"
+        "$env:USERPROFILE\NetHood"
+        "$env:USERPROFILE\Templates"
     )
     $paths | ForEach-Object { 
         if (Test-Path "$_") {
