@@ -1,4 +1,4 @@
-function create_hardlink {
+function create_hlink {
     param(
         $target_path,
         $source_path
