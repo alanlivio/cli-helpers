@@ -467,6 +467,25 @@ function win_office_disable_warn_local_link {
     }
 }
 
+function office_onenote_reset {
+    Get-Process -Name "ONENOTE", "ONENOTEM*" -ErrorAction SilentlyContinue | Stop-Process -Force
+    $onenote_path = "$env:LOCALAPPDATA\Microsoft\OneNote"
+    if (Test-Path $onenote_path) {
+        Remove-Item -Path $onenote_path -Recurse -Force
+    }
+    $creds = cmdkey.exe /list | Select-String "MicrosoftOffice16.*"
+    foreach ($line in $creds) {
+        $target = ($line -split "Target: ")[1]
+        cmdkey.exe /delete:$target
+    }
+}
+
+function office_onenote_list_large_sections {
+    $target_path = "C:\Users\$env:USERNAME\AppData\Local\Microsoft\OneNote"
+    $large_files = Get-ChildItem -Path $target_path -Filter *.one -Recurse | Where-Object Length -gt 100MB | Sort-Object Length -Descending
+    $large_files | Select-Object -First 10 Name, @{Name = "SizeMB"; Expression = { [math]::Round($_.Length / 1MB, 2) } }
+}
+
 function office_onenote_deeplink_from_url {
     param([Parameter(Mandatory)][string]$url)
 
