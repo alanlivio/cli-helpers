@@ -2,7 +2,7 @@
 
 `cli-helpers` is a library for organizing your Bash and PowerShell helper scripts. It automatically loads scripts from the `os/` directory based on your current operating system, and from the `programs/` directory if a specific program is installed. To use the library, you need to load [`init.sh`](init.sh) in your `.bashrc` and [`init.ps1`](init.ps1) in your PowerShell `$PROFILE`. The diagrams below provide an overview of the library's behavior.
 
-**from bash:**
+**From Bash:**
 
 ```mermaid
 flowchart LR
@@ -21,16 +21,16 @@ flowchart LR
     "]
     
     bashrc --> |"loads"| sh-init
-    sh-init --> |"1: loads if running at OS"| OS-dependent
+    sh-init --> |"1: loads matching OS script"| OS-dependent
     sh-init --> |"2: loads if program installed"| program-dependent
     %% sh-init --> |"3: create bash alias functions at"| ps-init
 ```
 
-**from powershell:**
+**From PowerShell:**
 
 ```mermaid
 flowchart LR
-    psprofile["profile.ps1"]
+    psprofile["$PROFILE"]
     ps-init["init.ps1"]
     %% sh-init["init.sh"]
     program-dependent["
@@ -45,7 +45,7 @@ flowchart LR
     "]
 
     psprofile--> |"loads"| ps-init
-    ps-init --> |"1: loads if running at OS"| OS-dependent
+    ps-init --> |"1: loads matching OS script"| OS-dependent
     ps-init --> |"2: loads if program installed"| program-dependent
     %%ps-init --> |"3: create ps1 alias to functions at"| sh-init
 ```
@@ -70,11 +70,11 @@ git clone https://github.com/alanlivio/cli-helpers $env:USERPROFILE\cli-helpers
 
 ## Adding Custom Scripts
 
-To add a script that only loads when a specific program is installed (e.g., `docker`), simply create a file at `programs/docker.bash` or `programs/docker.ps1`. The library handles the rest and will automatically load it when the program is detected!
+To add a script that only loads when a specific program is installed (e.g., `docker`), simply create a file named `programs/docker.bash` or `programs/docker.ps1`. The library handles the rest and will automatically load it when the program is detected!
 
 ## Running Tests
 
-This project includes automated tests to ensure all subfiles can be safely loaded without syntax errors. To run the them, do:
+This project includes automated tests to ensure all subfiles can be safely loaded without syntax errors. To run them, execute:
 
 ```bash
 python -m unittest discover -s tests
