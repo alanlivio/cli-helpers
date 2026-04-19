@@ -1,19 +1,4 @@
-function create_hlink {
-    param(
-        $target_path,
-        $source_path
-    )
-    if (Test-Path $target_path) {
-        Remove-Item $target_path -Force
-    }
-    New-Item -ItemType HardLink -Path $target_path -Value $source_path -Force | Out-Null
-    $item = Get-Item $target_path
-    if ($item.LinkType -ne "HardLink") {
-        Write-Error "File at $target_path is not a hardlink"
-    }
-}
-
-# -- os_upgrade --
+# -- system --
 
 function win_os_upgrade() {
     log_msg "win_os_upgrade"
@@ -30,6 +15,22 @@ function win_os_upgrade() {
         }
     }
 }
+
+function create_hlink {
+    param(
+        [Parameter(Mandatory)][string]$target_path,
+        [Parameter(Mandatory)][string]$source_path
+    )
+    if (Test-Path $target_path) {
+        Remove-Item $target_path -Force
+    }
+    New-Item -ItemType HardLink -Path $target_path -Value $source_path -Force | Out-Null
+    $item = Get-Item $target_path
+    if ($item.LinkType -ne "HardLink") {
+        log_error "File at $target_path is not a hardlink"
+    }
+}
+
 
 # -- admin --
 
