@@ -55,8 +55,8 @@ flowchart LR
 You can use the Bash commands below to fetch, install, and setup `cli-helpers` to be loaded in your `.bashrc`:
 
 ```bash
-git clone https://github.com/alanlivio/cli-helpers ~/cli-helpers
-. ~/cli-helpers/setup_profile_loading.sh
+git clone https://github.com/alanlivio/cli-helpers ~/src/cli-helpers
+. ~/src/cli-helpers/setup_profile_loading.sh
 ```
 
 ## PowerShell Setup
@@ -64,8 +64,8 @@ git clone https://github.com/alanlivio/cli-helpers ~/cli-helpers
 You can use the PowerShell commands below to fetch, install, and setup `cli-helpers` to be loaded in your `profile.ps1`:
 
 ```powershell
-git clone https://github.com/alanlivio/cli-helpers $env:USERPROFILE\cli-helpers
-& $env:USERPROFILE\cli-helpers\setup_profile_loading.ps1
+git clone https://github.com/alanlivio/cli-helpers $env:USERPROFILE\src\cli-helpers
+& $env:USERPROFILE\src\cli-helpers\setup_profile_loading.ps1
 ```
 
 ## Adding Custom Scripts
