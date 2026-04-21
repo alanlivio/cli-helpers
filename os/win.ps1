@@ -408,6 +408,56 @@ function wsl_terminate() {
     wsl -t (wsl_get_default)
 }
 
+function wsl_install_and_setup_default_user() {
+    log_msg "Checking WSL version..."
+    wsl --version
+    if (-not $?) {
+        log_error "> Windows feature for WSL not enabled!"
+        return
+    }
+
+    log_msg "Checking WSL update..."
+    wsl.exe --update
+    if (-not $?) {
+        log_error "> Windows feature for WSL not enabled!"
+        return
+    }
+    log_msg "Checking WSL distributions..."
+    wsl --list 
+
+    log_msg "Setup Ubuntu..."
+    $ubuntuInstalled = (wsl --list --quiet) -contains "Ubuntu"
+    if ($ubuntuInstalled) {
+        log_msg "> Ubuntu is already installed. Skipping installation."
+    } else {
+        log_msg "> Ubuntu not found. Installing WSL with Ubuntu..."
+        wsl --install -d Ubuntu
+    }
+
+    # getting the default user created from wsl --install -d Ubuntu
+    $defaultUser = (wsl whoami).Trim()
+    if (-not $?) {
+        log_error "> Default user not created"
+        return
+    }
+
+    # setup wsl mounting
+    # options="metadata,umask=0022,fmask=11"
+    log_msg "> Writing /etc/wsl.conf inside Ubuntu..."
+    $wslConfContent = @"
+[boot]
+systemd=true
+[automount]
+options="metadata,umask=0022"
+[user]
+default=$defaultUser
+"@
+    wsl -d Ubuntu -u root -- bash -c "echo '$wslConfContent' > /etc/wsl.conf"
+
+    # setup defaultUser 
+    log_msg "> Setting default user '$defaultUser' as sudoer in Ubuntu..."
+    wsl -d Ubuntu -u root -- bash -c "grep -q '^$defaultUser\\b' /etc/sudoers || echo '${defaultUser} ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers" 2>$null
+}
 
 function wsl_use_same_home() {
     log_msg "setup wsl to use same home"
