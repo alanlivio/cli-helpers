@@ -52,12 +52,3 @@ function python_packaging_upload_pypip() {
     twine check dist/*
     twine upload dist/*
 }
-
-function python_pyright_stubs_from_requirements_txt() {
-    pip show pyright &>/dev/null || pip install pyright
-    pip show requirements-parser >/dev/null || pip install requirements-parser
-    local pkgs=$(python -c "import requirements; import os; names=[req.name for req in requirements.parse(open('requirements.txt', 'r'))]; print(' '.join(names))")
-    for pkg in $pkgs; do
-        pyright --createstub $pkg
-    done
-}
