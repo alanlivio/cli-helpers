@@ -7,7 +7,7 @@ function pip_install() {
 }
 
 function python_fix_error_externally_managed_environment() {
-    python3 -m pip config set global.break-system-packages true
+    python -m pip config set global.break-system-packages true
 }
 
 function python_clean_pip_conda_cache() {
@@ -15,16 +15,24 @@ function python_clean_pip_conda_cache() {
     conda clean --all --yes
 }
 
+function python_install_torch_cuda(){
+    pip uninstall torch torchvision torchaudio -y
+    pip install --pre torch torch --index-url "https://download.pytorch.org/whl/nightly/cu124"
+    echo 'python -c "import torch; print(torch.cuda.get_device_name(0))"'
+    python -c "import torch; print(torch.cuda.get_device_name(0))"
+}
+    
+function python_check_torch() {
+    python -c "import torch; print(torch.cuda.get_device_name(0))"
+}
+
 function python_check_tensorflow() {
-    python3 -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
+    python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
+    python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
 }
 
-function python_check_numa() {
-    type -p numactl &>/dev/null || sudo apt-get install numactl
-    numactl --show
-}
 
-function python_packaging_install_local() {
+function python_pypi_install_local() {
     pip show setuptools &>/dev/null || pip install setuptools
     [[ -d dist ]] && rm -r dist
     [[ -d build ]] && rm -r build
@@ -32,7 +40,7 @@ function python_packaging_install_local() {
     pip install dist/*.whl --force-reinstall
 }
 
-function python_packaging_upload_testpypi() {
+function python_pypi_upload_testpypi() {
     pip show setuptools &>/dev/null || pip install setuptools
     pip show twine &>/dev/null || pip install twine
     [[ -d dist ]] && rm -r dist
@@ -43,7 +51,7 @@ function python_packaging_upload_testpypi() {
     twine upload --repository testpypi dist/*
 }
 
-function python_packaging_upload_pypip() {
+function python_pypi_upload_pypip() {
     pip show setuptools &>/dev/null || pip install setuptools
     pip show twine &>/dev/null || pip install twine
     [[ -d dist ]] && rm -r dist
