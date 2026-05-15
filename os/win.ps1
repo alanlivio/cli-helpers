@@ -911,3 +911,207 @@ function win_declutter_xbox() {
     winget_uninstall "Microsoft Edge Game Assist" 
     winget_uninstall Microsoft.XboxSpeechToTextOverlay_8wekyb3d8bbwe
 }
+
+function win_ps_using_slash() {
+    # Based on https://github.com/PowerShell/PowerShell/discussions/16671#discussioncomment-1869254
+    if ($env:OS -eq 'Windows_NT') {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
+        $global:PSUseSlash = $true
+        function global:TabExpansion2 {
+            [CmdletBinding(DefaultParameterSetName = 'ScriptInputSet')]
+            Param(
+                [Parameter(ParameterSetName = 'ScriptInputSet', Mandatory = $true, Position = 0)]
+                [string] $inputScript,
+                [Parameter(ParameterSetName = 'ScriptInputSet', Position = 1)]
+                [int] $cursorColumn = $inputScript.Length,
+                [Parameter(ParameterSetName = 'AstInputSet', Mandatory = $true, Position = 0)]
+                [System.Management.Automation.Language.Ast] $ast,
+                [Parameter(ParameterSetName = 'AstInputSet', Mandatory = $true, Position = 1)]
+                [System.Management.Automation.Language.Token[]] $tokens,
+                [Parameter(ParameterSetName = 'AstInputSet', Mandatory = $true, Position = 2)]
+                [System.Management.Automation.Language.IScriptPosition] $positionOfCursor,
+                [Parameter(ParameterSetName = 'ScriptInputSet', Position = 2)]
+                [Parameter(ParameterSetName = 'AstInputSet', Position = 3)]
+                [Hashtable] $options = $null
+            )
+            End {
+                $completions = if ($psCmdlet.ParameterSetName -eq 'ScriptInputSet') {
+                    [System.Management.Automation.CommandCompletion]::CompleteInput($inputScript, $cursorColumn, $options)
+                } else {
+                    [System.Management.Automation.CommandCompletion]::CompleteInput($ast, $tokens, $positionOfCursor, $options)
+                }
+                if ($global:PSUseSlash -or (Get-Variable -ea Ignore -Scope 1 -ValueOnly PSUseSlash)) {
+                    for ($i = 0; $i -lt $completions.CompletionMatches.Count; ++$i) {
+                        $cm = $completions.CompletionMatches[$i]
+                        if ($cm.ResultType -notin 'ProviderItem', 'ProviderContainer') { continue }
+                        $completions.CompletionMatches[$i] = [System.Management.Automation.CompletionResult]::new(
+                            $cm.CompletionText.Replace('\', '/'),
+                            $cm.ListItemText,
+                            $cm.ResultType,
+                            $cm.ToolTip.Replace('\', '/')
+                        )
+                    }
+                }
+                $completions
+            }
+        }
+        function global:Convert-Path {
+            [CmdletBinding(DefaultParameterSetName = 'Path', HelpUri = 'https://go.microsoft.com/fwlink/?LinkID=2096588', RemotingCapability = 'None')]
+            param(
+                [Parameter(ParameterSetName = 'Path', Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+                [string[]]
+                ${Path},
+                [Parameter(ParameterSetName = 'LiteralPath', Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
+                [Alias('PSPath', 'LP')]
+                [string[]]
+                ${LiteralPath},
+                [Alias('sl')] [switch] $UseSlash
+            )
+            begin {
+                if ($PSBoundParameters.ContainsKey('UseSlash')) { 
+                    $null = $PSBoundParameters.Remove('UseSlash') 
+                } elseif ($global:PSUseSlash -or (Get-Variable -ea Ignore -ValueOnly PSUseSlash) -or (Get-Variable -ea Ignore -Scope 1 -ValueOnly PSUseSlash)) {
+                    $UseSlash = $true
+                }
+                if ($env:OS -ne 'Windows_NT') { $UseSlash = $false }
+                $wrappedCmd = $ExecutionContext.InvokeCommand.GetCommand('Microsoft.PowerShell.Management\Convert-Path', 'Cmdlet')
+                $scriptCmd = if ($UseSlash) {
+                    { & $wrappedCmd @PSBoundParameters | ForEach-Object { $_.Replace('\', '/') } }
+                } else {
+                    { & $wrappedCmd @PSBoundParameters }
+                }
+                $steppablePipeline = $scriptCmd.GetSteppablePipeline($myInvocation.CommandOrigin)
+                $steppablePipeline.Begin($PSCmdlet)
+            }
+            process {
+                try {
+                    $null = $steppablePipeline.Process($_)
+                } catch {
+                    $PSCmdlet.ThrowTerminatingError($_)
+                }
+            }
+            end { try { $steppablePipeline.End() } catch { $PSCmdlet.ThrowTerminatingError($_) } }
+        }
+        function global:Join-Path {
+            [CmdletBinding(HelpUri = 'https://go.microsoft.com/fwlink/?LinkID=2096811')]
+            param(
+                [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+                [Alias('PSPath')]
+                [string[]]
+                ${Path},
+                [Parameter(Mandatory = $true, Position = 1, ValueFromPipelineByPropertyName = $true)]
+                [AllowEmptyString()]
+                [AllowNull()]
+                [string]
+                ${ChildPath},
+                [Parameter(Position = 2, ValueFromPipelineByPropertyName = $true, ValueFromRemainingArguments = $true)]
+                [AllowNull()]
+                [AllowEmptyString()]
+                [AllowEmptyCollection()]
+                [string[]]
+                ${AdditionalChildPath},
+                [switch]
+                ${Resolve},
+                [Parameter(ValueFromPipelineByPropertyName = $true)]
+                [pscredential]
+                [System.Management.Automation.CredentialAttribute()]
+                ${Credential},
+                [Alias('sl')] [switch] $UseSlash
+            )
+            begin {
+                try {
+                    if ($PSBoundParameters.ContainsKey('UseSlash')) { 
+                        $null = $PSBoundParameters.Remove('UseSlash') 
+                    } elseif ($global:PSUseSlash -or (Get-Variable -ea Ignore -ValueOnly PSUseSlash) -or (Get-Variable -ea Ignore -Scope 1 -ValueOnly PSUseSlash)) {
+                        $UseSlash = $true
+                    }
+                    if ($env:OS -ne 'Windows_NT') { $UseSlash = $false }
+                    $wrappedCmd = $ExecutionContext.InvokeCommand.GetCommand('Microsoft.PowerShell.Management\Join-Path', 'Cmdlet')
+                    $scriptCmd = if ($UseSlash) {
+                        { & $wrappedCmd @PSBoundParameters | ForEach-Object { $_.Replace('\', '/') } }
+                    } else {
+                        { & $wrappedCmd @PSBoundParameters }
+                    }
+                    $steppablePipeline = $scriptCmd.GetSteppablePipeline($myInvocation.CommandOrigin)
+                    $steppablePipeline.Begin($PSCmdlet)
+                } catch {
+                    $PSCmdlet.ThrowTerminatingError($_)
+                }
+            }
+            process {
+                try {
+                    $null = $steppablePipeline.Process($_)
+                } catch {
+                    $PSCmdlet.ThrowTerminatingError($_)
+                }
+            }
+            end { try { $steppablePipeline.End() } catch { $PSCmdlet.ThrowTerminatingError($_) } }
+        }
+        function global:Split-Path {
+            [CmdletBinding(DefaultParameterSetName = 'ParentSet', SupportsTransactions = $true, HelpUri = 'https://go.microsoft.com/fwlink/?LinkID=113404')]
+            param(
+                [Parameter(ParameterSetName = 'NoQualifierSet', Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+                [Parameter(ParameterSetName = 'LeafSet', Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+                [Parameter(ParameterSetName = 'QualifierSet', Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+                [Parameter(ParameterSetName = 'ParentSet', Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+                [Parameter(ParameterSetName = 'IsAbsoluteSet', Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+                [string[]]
+                ${Path},
+                [Parameter(ParameterSetName = 'LiteralPathSet', Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
+                [Alias('PSPath')]
+                [string[]]
+                ${LiteralPath},
+                [Parameter(ParameterSetName = 'QualifierSet', Position = 1, ValueFromPipelineByPropertyName = $true)]
+                [switch]
+                ${Qualifier},
+                [Parameter(ParameterSetName = 'NoQualifierSet', ValueFromPipelineByPropertyName = $true)]
+                [switch]
+                ${NoQualifier},
+                [Parameter(ParameterSetName = 'ParentSet', ValueFromPipelineByPropertyName = $true)]
+                [switch]
+                ${Parent},
+                [Parameter(ParameterSetName = 'LeafSet', ValueFromPipelineByPropertyName = $true)]
+                [switch]
+                ${Leaf},
+                [switch]
+                ${Resolve},
+                [Parameter(ParameterSetName = 'IsAbsoluteSet')]
+                [switch]
+                ${IsAbsolute},
+                [Parameter(ValueFromPipelineByPropertyName = $true)]
+                [pscredential]
+                [System.Management.Automation.CredentialAttribute()]
+                ${Credential},
+                [Alias('sl')] [switch] $UseSlash
+            )
+            begin {
+                try {
+                    if ($PSBoundParameters.ContainsKey('UseSlash')) { 
+                        $null = $PSBoundParameters.Remove('UseSlash') 
+                    } elseif ($global:PSUseSlash -or (Get-Variable -ea Ignore -ValueOnly PSUseSlash) -or (Get-Variable -ea Ignore -Scope 1 -ValueOnly PSUseSlash)) {
+                        $UseSlash = $true
+                    }
+                    if ($env:OS -ne 'Windows_NT') { $UseSlash = $false }
+                    $wrappedCmd = $ExecutionContext.InvokeCommand.GetCommand('Microsoft.PowerShell.Management\Split-Path', 'Cmdlet')
+                    $scriptCmd = if ($UseSlash -and -not $IsAbsolute) {
+                        { & $wrappedCmd @PSBoundParameters | ForEach-Object { $_.Replace('\', '/') } }
+                    } else {
+                        { & $wrappedCmd @PSBoundParameters }
+                    }
+                    $steppablePipeline = $scriptCmd.GetSteppablePipeline($myInvocation.CommandOrigin)
+                    $steppablePipeline.Begin($PSCmdlet)
+                } catch {
+                    $PSCmdlet.ThrowTerminatingError($_)
+                }
+            }
+            process {
+                try {
+                    $null = $steppablePipeline.Process($_)
+                } catch {
+                    $PSCmdlet.ThrowTerminatingError($_)
+                }
+            }
+            end { try { $steppablePipeline.End() } catch { $PSCmdlet.ThrowTerminatingError($_) } }
+        }
+    }
+}
