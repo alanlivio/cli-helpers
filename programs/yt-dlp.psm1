@@ -104,3 +104,5 @@ function yt_dlp_video_480_from_urls_at_txt {
     )
     yt-dlp @yt_dlt_args
 }
+
+Export-ModuleMember -Function *

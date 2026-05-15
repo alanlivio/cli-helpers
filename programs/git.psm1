@@ -90,3 +90,5 @@ function git_tag_move_to_head_and_push {
     git tag $tagname
     git push --force --tags
 }
+
+Export-ModuleMember -Function *

@@ -56,3 +56,5 @@ function ffmpeg_mp4_files_merge {
     ffmpeg.exe -f concat -safe 0 -i "$tempFile" -c copy merged.mp4
     Remove-Item $tempFile
 }
+
+Export-ModuleMember -Function *

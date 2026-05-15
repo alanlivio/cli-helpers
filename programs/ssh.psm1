@@ -11,3 +11,5 @@ function ssh_send_priv_key_to_remote {
     $privateKeyPath = Join-Path $env:userprofile ".ssh\id_rsa"
     (Get-Content $privateKeyPath -Raw) -replace "`r`n", "`n" | ssh "$server" "sh -c 'cat - > ~/.ssh/id_rsa;chmod 600 ~/.ssh/id_rsa'"
 }
+
+Export-ModuleMember -Function *

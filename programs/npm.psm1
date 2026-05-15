@@ -22,3 +22,5 @@ function md_folder_all_marp_to_pdf {
         }
     }
 }
+
+Export-ModuleMember -Function *

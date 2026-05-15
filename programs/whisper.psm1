@@ -70,3 +70,5 @@ function whisper_transcribe {
         }
     }
 }
+
+Export-ModuleMember -Function *

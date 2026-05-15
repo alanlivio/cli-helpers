@@ -1115,3 +1115,5 @@ function win_ps_using_slash() {
         }
     }
 }
+
+Export-ModuleMember -Function *

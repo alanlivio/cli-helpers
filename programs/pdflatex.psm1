@@ -10,3 +10,5 @@ function latex_word_count() {
         if ($_ -match '^Sum count:\s*(\d+)') { $matches[1] }
     }
 }
+
+Export-ModuleMember -Function *
