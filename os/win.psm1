@@ -171,6 +171,8 @@ function win_install_flutter() {
     $url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.41.6-stable.zip"
     win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\flutter" "bin\flutter.bat"
     win_path_add "$env:LOCALAPPDATA\Programs\flutter\bin"
+    winget install --id Microsoft.VisualStudio.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+    winget install --id Microsoft.VisualStudio.2019.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 }
 
 function win_install_obs() {
