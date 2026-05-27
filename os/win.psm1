@@ -194,11 +194,28 @@ function win_install_vlc() {
 }
 
 function win_install_flutter() {
-    if (Test-Path "$env:LOCALAPPDATA\Programs\flutter\bin\flutter.bat") { return; }
-    $url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.41.6-stable.zip"
-    win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\flutter" "bin\flutter.bat"
-    win_path_add "$env:LOCALAPPDATA\Programs\flutter\bin"
-    winget install --id Microsoft.VisualStudio.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+    $flutter_path = "$env:LOCALAPPDATA\Programs\flutter"
+    $flutter_bat = "$flutter_path\bin\flutter.bat"
+    $response = Invoke-RestMethod -Uri "https://storage.googleapis.com/flutter_infra_release/releases/releases_windows.json"
+    if (-not ($response)) { log_error "Download failed"; return }
+    $stable_hash = $response.current_release.stable
+    $stable_release = $response.releases | Where-Object { $_.hash -eq $stable_hash }
+    $latest_version = $stable_release.version
+    if (Test-Path $flutter_bat) {
+        $version_output = & $flutter_bat --version
+        $version_string = $version_output -join "`n"
+        if ($version_string -match "Flutter\s+(\d+\.\d+\.\d+)") {
+            $current_version = $Matches[1]
+            try {
+                if ([version]$current_version -ge [version]$latest_version) {
+                    return
+                }
+            } catch {}
+        }
+    }
+    $url = $response.base_url + $stable_release.archive
+    win_install_exe_from_zip $url $flutter_path "bin\flutter.bat"
+    win_path_add "$flutter_path\bin"
     winget install --id Microsoft.VisualStudio.2019.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 }
 
