@@ -180,15 +180,27 @@ function win_install_exe_from_zip() {
 }
 
 function win_install_vlc() {
-    $vlc_exists = Get-ChildItem -Path "$env:LOCALAPPDATA\Programs" -Directory -Filter "vlc-*" | Where-Object { $_.Name -match "^vlc-\d+\.\d+\.\d+$" }
-    if ($vlc_exists) { return; }
     $vlc_latest_win64_url = "https://get.videolan.org/vlc/last/win64/"
-    $web_request = Invoke-WebRequest -Uri $vlc_latest_win64_url -Method Get -ErrorAction Stop
+    $web_request = Invoke-WebRequest -Uri $vlc_latest_win64_url -Method Get -UseBasicParsing -ErrorAction Stop
     $vlc_zip_link = $web_request.Links | Where-Object { $_.href -like "*win64.zip" } | Select-Object -First 1
     if (-not ($vlc_zip_link)) { log_error "Download failed"; return }
     $vlc_zip = $vlc_zip_link.href
-    $url = "https://get.videolan.org/vlc/last/win64/$vlc_zip"
     $pkg_name = $vlc_zip -replace '-win64\.zip$'
+    if ($pkg_name -match "vlc-(\d+\.\d+\.\d+)") {
+        $latest_version = $Matches[1]
+        $installed_versions = Get-ChildItem -Path "$env:LOCALAPPDATA\Programs" -Directory -Filter "vlc-*" |
+        ForEach-Object { if ($_.Name -match "^vlc-(\d+\.\d+\.\d+)$") { [version]$Matches[1] } } |
+        Sort-Object -Descending
+        if ($installed_versions) {
+            $current_version = $installed_versions[0]
+            try {
+                if ($current_version -ge [version]$latest_version) {
+                    return
+                }
+            } catch {}
+        }
+    }
+    $url = "https://get.videolan.org/vlc/last/win64/$vlc_zip"
     win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\$pkg_name" "vlc.exe"
     win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\$pkg_name\vlc.exe"
 }
@@ -220,11 +232,25 @@ function win_install_flutter() {
 }
 
 function win_install_obs() {
-    if (Test-Path "$env:LOCALAPPDATA\Programs\OBS\bin\64bit\obs64.exe") { return; }
     $api_url = "https://api.github.com/repos/obsproject/obs-studio/releases/latest"
     $response = Invoke-RestMethod -Uri $api_url -Method Get -Headers @{"Accept" = "application/vnd.github.v3+json" }
     if (-not ($response)) { log_error "Download failed"; return }
     $version = $response.tag_name
+    if ($version -match "(\d+\.\d+\.\d+(\.\d+)?)") {
+        $latest_version = $Matches[1]
+        $obs_exe = "$env:LOCALAPPDATA\Programs\OBS\bin\64bit\obs64.exe"
+        if (Test-Path $obs_exe) {
+            $current_version_info = (Get-Item $obs_exe).VersionInfo.FileVersion
+            if ($current_version_info -match "(\d+\.\d+\.\d+(\.\d+)?)") {
+                $current_version = $Matches[1]
+                try {
+                    if ([version]$current_version -ge [version]$latest_version) {
+                        return
+                    }
+                } catch {}
+            }
+        }
+    }
     $url = "https://github.com/obsproject/obs-studio/releases/download/$version/OBS-Studio-$version-Windows-x64.zip"
     win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\OBS" "bin\64bit\obs64.exe"
     win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\OBS\bin\64bit\obs64.exe" OBS
@@ -298,13 +324,13 @@ function winget_upgrade() {
 function winget_install() {
     winget list --accept-source-agreements -q $args[0] | Out-Null # first arg is the id
     if (-not($?)) {
-        winget install "$args" --accept-package-agreements --accept-source-agreements
+        winget install "$args" --accept-package-agreements --accept-source-agreements --scope user
     }
 }
 
 function winget_uninstall() {
     param ([Parameter(Mandatory = $true)][string] $pkg)
-    winget list --accept-source-agreements -q $pkg | Out-Null
+    winget list --scope user -q $pkg | Out-Null
     if ($?) {
         winget uninstall $pkg
     }
