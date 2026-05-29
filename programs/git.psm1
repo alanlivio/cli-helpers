@@ -37,7 +37,7 @@ function git_pull_recursive {
         $sub = $_.FullName
         if (Test-Path "$sub/.git") {
             Push-Location $sub
-            log_msg "git pull at $sub"
+            log_msg "git pull at $($sub.Replace('\', '/'))"
             git pull -q
             Pop-Location
         }
