@@ -1,11 +1,11 @@
-function git_clone_to() {
+function git_clone_or_pull() {
     param(
         [string]$url, 
         [string]$basedir, 
         [string]$email
     )
     if ($PSBoundParameters.Keys.Count -lt 2) { 
-        log_error "Usage: git_clone_to <url> <basedir> [<email>]. Use <email> to differ from ~/.gitconfig email."; return 
+        log_error "Usage: git_clone_or_pull <url> <basedir> [<email>]. Use <email> to differ from ~/.gitconfig email."; return 
     }
     $dir = Join-Path $basedir (Split-Path $url -Leaf)
     if (Test-Path $dir) {

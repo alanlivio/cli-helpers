@@ -1,5 +1,5 @@
-function git_clone_to() {
-    : ${2?"Usage: git_clone_to <url> <basedir> [<email>]. Use <email> to differ from ~/.gitconfig email."}
+function git_clone_or_pull() {
+    : ${2?"Usage: git_clone_or_pull <url> <basedir> [<email>]. Use <email> to differ from ~/.gitconfig email."}
     local url=$1
     local basedir=$2
     local email=$3
