@@ -562,6 +562,20 @@ function wsl_fix_metadata() {
 
 # -- office --
 
+function win_office_word_template_cleanup {
+    $app_data = [Environment]::GetFolderPath("ApplicationData")
+    $normal_path = "$app_data\Microsoft\Templates\Normal.dotm"
+    $word_process = Get-Process -Name "winword" -ErrorAction SilentlyContinue
+    if ($word_process) {
+        $word_process | Stop-Process -Force
+        Start-Sleep -Seconds 2
+    }
+    if (Test-Path $normal_path) {
+        Remove-Item $normal_path -Force
+    }
+}
+    
+    
 function win_office_disable_zoom {
     $paths = @(
         "HKCU:\Software\Microsoft\Office\Outlook\Addins\ZoomOutlookAddIn",
