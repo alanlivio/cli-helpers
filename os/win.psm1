@@ -225,7 +225,7 @@ function win_install_flutter() {
             } catch {}
         }
     }
-    $url = $response.base_url + $stable_release.archive
+    $url = $response.base_url + '/' + $stable_release.archive
     win_install_exe_from_zip $url $flutter_path "bin\flutter.bat"
     win_path_add "$flutter_path\bin"
     winget install --id Microsoft.VisualStudio.2019.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
