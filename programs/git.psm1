@@ -53,11 +53,13 @@ function git_gitignore_types_add {
         [Parameter(Mandatory = $true, HelpMessage = "Usage: git_gitignore_type_add_current_folder <contexts,..>")]
         [string]$types
     )
-    (Invoke-WebRequest -Uri "https://www.toptal.com/developers/gitignore/api/$types" -UseBasicParsing).Content
+    $content = (Invoke-WebRequest -Uri "https://www.toptal.com/developers/gitignore/api/$types" -UseBasicParsing).Content
+    Add-Content -Path .gitignore -Value $content
 }
 
 function git_gitignore_types_add_vscode {
-    (Invoke-WebRequest -Uri "https://www.toptal.com/developers/gitignore/api/visualstudiocode" -UseBasicParsing).Content
+    $content = (Invoke-WebRequest -Uri "https://www.toptal.com/developers/gitignore/api/visualstudiocode" -UseBasicParsing).Content
+    Add-Content -Path .gitignore -Value $content
 }
 
 
