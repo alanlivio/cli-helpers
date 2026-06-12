@@ -46,6 +46,36 @@ function create_hlink {
     }
 }
 
+function create_slink {
+    param(
+        [Parameter(Mandatory)][string]$target_path,
+        [Parameter(Mandatory)][string]$source_path
+    )
+
+    if (-not (Test-Path $source_path)) {
+        log_error "Source path '$source_path' does not exist."
+        return
+    }
+
+    $target_dir = Split-Path $target_path -Parent
+    if ($target_dir -and -not (Test-Path $target_dir)) {
+        New-Item -ItemType Directory -Path $target_dir -Force | Out-Null
+    }
+
+    if (Test-Path $target_path) {
+        Remove-Item $target_path -Force -Recurse
+    }
+
+    try {
+        $item = New-Item -ItemType SymbolicLink -Path $target_path -Value $source_path -Force -ErrorAction Stop
+        if ($item.LinkType -ne "SymbolicLink") {
+            log_error "File at $target_path is not a symbolic link"
+        }
+    } catch {
+        log_error "Failed to create symbolic link at '$target_path': $_"
+    }
+}
+
 
 function create_junction {
     param(
