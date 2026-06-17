@@ -143,6 +143,13 @@ function win_admin_romove_current_user() {
     net localgroup 'Administrators' $current_user /delete
 }
 
+function win_admin_enable_ssh() {
+    add-windows-capability -online -name openssh.server~~~~0.0.1.0
+    set-service -name sshd -startuptype automatic
+    start-service sshd
+}
+
+
 # -- install -- 
 
 function win_reinstall_vscode {
