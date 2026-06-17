@@ -1,4 +1,4 @@
-function log_msg() { Write-Host -ForegroundColor DarkYellow "--" ($args -join " ") }
+function log_msg { Write-Host -ForegroundColor DarkYellow "--" ($args -join " ") }
 
 $HELPERS_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $sourceLine = ". $HELPERS_DIR/init.ps1"

@@ -1,7 +1,7 @@
 # -- basic --
 
-function log_error() { echo -e "\033[00;31m-- $* \033[00m"; }
-function log_msg() { echo -e "\033[00;33m-- $* \033[00m"; }
+function log_error { echo -e "\033[00;31m-- $* \033[00m";}
+function log_msg { echo -e "\033[00;33m-- $* \033[00m";}
 alias bashrc_reload='source $HOME/.bashrc'
 alias folder_count_files='find . -maxdepth 1 -type f | wc -l'
 alias folder_count_files_recusive='find . -maxdepth 1 -type f | wc -l'

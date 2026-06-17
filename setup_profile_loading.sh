@@ -1,4 +1,4 @@
-function log_msg() { echo -e "\033[00;33m-- $* \033[00m"; }
+function log_msg { echo -e "\033[00;33m-- $* \033[00m"; }
 
 HELPERS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
 sourceLine="source $HELPERS_DIR/init.sh"

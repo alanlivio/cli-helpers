@@ -1,7 +1,7 @@
 # -- basic --
 
-function log_msg() { Write-Host -ForegroundColor DarkYellow "--" ($args -join " ") }
-function log_error() { Write-Host -ForegroundColor DarkRed "--" ($args -join " ") }
+function log_msg { Write-Host -ForegroundColor DarkYellow "--" ($args -join " ") }
+function log_error { Write-Host -ForegroundColor DarkRed "--" ($args -join " ") }
 function passwd_generate { -join (1..12 | ForEach-Object { [char[]]'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!?' | Get-Random }) }
 
 # -- ps --
@@ -26,7 +26,7 @@ function ps_open_admin_shell_with_cur_profile {
 # -- text/ascii --
 
 function text_to_ascii {
-    param([Parameter(Mandatory=$true, ValueFromPipeline=$true)][string]$Path)
+    param([Parameter(Mandatory = $true, ValueFromPipeline = $true)][string]$Path)
     process {
         if (Test-Path $Path) {
             $content = Get-Content -Path $Path -Raw
