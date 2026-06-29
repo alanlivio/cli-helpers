@@ -716,12 +716,37 @@ function win_system_policy_reset() {
     gpupdate.exe /force
 }
 
-function win_system_enable_ssh_agent() {
+# -- ssh --
+
+function win_ssh_agent_enable() {
     if (Test-IsNotAdmin) { log_error "no admin. skipping."; return }
     Set-Service ssh-agent -StartupType Automatic
     Start-Service ssh-agent
     Get-Service ssh-agent
     ssh-add "$env:USERPROFILE\\.ssh\\id_rsa"
+}
+
+function win_ssh_server_setup {
+    Get-WindowsCapability -Online -Name OpenSSH.Server* | Add-WindowsCapability -Online
+    Set-Service -Name sshd -StartupType Automatic
+    Start-Service -Name sshd
+}
+    
+function win_ssh_server_fix_config {
+    Stop-Service -Name sshd -ErrorAction SilentlyContinue
+    Remove-Item -Path "C:\ProgramData\ssh" -Recurse -Force -ErrorAction SilentlyContinue
+    & "C:\Windows\System32\OpenSSH\ssh-keygen.exe" -A
+    $config_path = "C:\ProgramData\ssh\sshd_config"
+    if (Test-Path $config_path) {
+        (Get-Content $config_path) | ForEach-Object {
+            if ($_ -match "^#?PasswordAuthentication") { "PasswordAuthentication yes" }
+            elseif ($_ -match "^#?PubkeyAuthentication") { "PubkeyAuthentication yes" }
+            elseif ($_ -match "Match Group administrators") { "# Match Group administrators" }
+            elseif ($_ -match "AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys") { "# AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys" }
+            else { $_ }
+        } | Set-Content $config_path
+    }
+    Restart-Service -Name sshd
 }
 
 # -- onedrive --
