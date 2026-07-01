@@ -22,6 +22,9 @@ function create_hlink {
         [Parameter(Mandatory)][string]$source_path
     )
 
+    $target_path = $target_path.TrimEnd('\').TrimEnd('/')
+    $source_path = $source_path.TrimEnd('\').TrimEnd('/')
+
     if (-not (Test-Path $source_path)) {
         log_error "Source path '$source_path' does not exist."
         return
@@ -51,6 +54,9 @@ function create_slink {
         [Parameter(Mandatory)][string]$target_path,
         [Parameter(Mandatory)][string]$source_path
     )
+
+    $target_path = $target_path.TrimEnd('\').TrimEnd('/')
+    $source_path = $source_path.TrimEnd('\').TrimEnd('/')
 
     if (-not (Test-Path $source_path)) {
         log_error "Source path '$source_path' does not exist."
@@ -82,6 +88,8 @@ function create_junction {
         [Parameter(Mandatory)][string]$target_path,
         [Parameter(Mandatory)][string]$source_path
     )
+    $target_path = $target_path.TrimEnd('\').TrimEnd('/')
+    $source_path = $source_path.TrimEnd('\').TrimEnd('/')
     if (-not (Test-Path $source_path -PathType Container)) {
         log_error "Source path '$source_path' does not exist or is not a directory."
         return
