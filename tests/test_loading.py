@@ -57,9 +57,10 @@ class TestScriptLoading(unittest.TestCase):
         if ps is None:
             self.skipTest("powershell.exe not available on this platform")
 
-        # Gather all powershell scripts
         scripts = glob.glob(os.path.join(self.root_dir, 'os', '*.ps1')) + \
+                  glob.glob(os.path.join(self.root_dir, 'os', '*.psm1')) + \
                   glob.glob(os.path.join(self.root_dir, 'programs', '*.ps1')) + \
+                  glob.glob(os.path.join(self.root_dir, 'programs', '*.psm1')) + \
                   [os.path.join(self.root_dir, 'init.ps1')]
 
         for script in scripts:
