@@ -899,6 +899,7 @@ function win_declutter_home_folders() {
 function win_declutter_osapps() {
     log_msg "win_declutter_osapps"
     winget_uninstall "Mail and Calendar"
+    winget_uninstall "Microsoft Bing"
     winget_uninstall "MSN Weather"
     winget_uninstall "Microsoft Sticky Notes"
     winget_uninstall "Microsoft Clipchamp"
@@ -910,7 +911,6 @@ function win_declutter_osapps() {
     winget_uninstall "Microsoft People"
     winget_uninstall "Films & TV"
     winget_uninstall "Power Automate"
-    winget_uninstall "Dev HOME"
     winget_uninstall 9P6PMZTM93LR # Defender
     winget_uninstall 9WZDNCRD29V9 # Microsoft 365 Copilot
     winget_uninstall 9PDJDJS743XF # Family
