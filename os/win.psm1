@@ -160,21 +160,6 @@ function win_admin_enable_ssh() {
 
 # -- install -- 
 
-function win_reinstall_vscode {
-    winget uninstall Microsoft.VisualStudioCode --silent --force
-    $vscode_data_paths = @(
-        "$env:APPDATA\Code",
-        "$env:LOCALAPPDATA\Code",
-        "$env:USERPROFILE\.vscode",
-        "$env:TEMP\vscode-update"
-    )
-    foreach ($path in $vscode_data_paths) {
-        if (Test-Path $path) {
-            Remove-Item -Recurse -Force $path
-        }
-    }
-    winget install Microsoft.VisualStudioCode --silent
-}
 
 function win_install_exe_from_zip() {
     # if the basename of extractPath exist inside extracted Path so get from inside that folder
@@ -342,21 +327,27 @@ function win_install_latex() {
     winget_install MikTex.MikTex
 }
 
-function win_install_ffmpeg() {
-    winget_install Gyan.FFmpeg
-    win_path_add("$env:LOCALAPPDATA\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-7.1.1-full_build\bin")
-}
-
-function win_install_vim() {
-    if (Test-Path "$env:LOCALAPPDATA\Programs\vim\vim91\vim.exe") { return; }  
-    winget install vim.vim --location="$env:LOCALAPPDATA\Programs\vim"
-    win_path_add "$env:LOCALAPPDATA\Programs\vim\vim91"
-}
-
 function win_install_tor() {
     if (Test-Path "$env:LOCALAPPDATA\Programs\TorBrowser") { return; } # winget -q return false for TorBrowser
     winget install TorProject.TorBrowser --location="$env:LOCALAPPDATA\Programs\TorBrowser" 
     win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\TorBrowser\Browser\firefox.exe" TorBrowser
+}
+
+# -- win_purge --
+
+function win_purge_vscode {
+    winget uninstall Microsoft.VisualStudioCode --silent --force
+    $vscode_data_paths = @(
+        "$env:APPDATA\Code",
+        "$env:LOCALAPPDATA\Code",
+        "$env:USERPROFILE\.vscode",
+        "$env:TEMP\vscode-update"
+    )
+    foreach ($path in $vscode_data_paths) {
+        if (Test-Path $path) {
+            Remove-Item -Recurse -Force $path
+        }
+    }
 }
 
 # -- winget --
