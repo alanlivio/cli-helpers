@@ -628,8 +628,14 @@ function office_onenote_list_large_sections {
 }
 
 
-# -- system --
+# -- startup --
 
+function win_startup_add_app($app_name, $exe_path) {
+    $reg_path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+    New-ItemProperty -Path $reg_path -Name $app_name -Value "$exe_path" -PropertyType String -Force
+}
+
+# -- system --
 
 function win_system_image_check() {
     if (Test-IsNotAdmin) { log_error "no admin. skipping."; return }
