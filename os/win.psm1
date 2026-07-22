@@ -160,7 +160,6 @@ function win_admin_enable_ssh() {
 
 # -- install -- 
 
-
 function win_install_exe_from_zip() {
     # if the basename of extractPath exist inside extracted Path so get from inside that folder
     # For example: win_install_exe_from_zip ""...\vlc-3.0.21.zip" "...\bin\vlc-3.0.21" "vlc.exe" 
@@ -331,23 +330,6 @@ function win_install_tor() {
     if (Test-Path "$env:LOCALAPPDATA\Programs\TorBrowser") { return; } # winget -q return false for TorBrowser
     winget install TorProject.TorBrowser --location="$env:LOCALAPPDATA\Programs\TorBrowser" 
     win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\TorBrowser\Browser\firefox.exe" TorBrowser
-}
-
-# -- win_purge --
-
-function win_purge_vscode {
-    winget uninstall Microsoft.VisualStudioCode --silent --force
-    $vscode_data_paths = @(
-        "$env:APPDATA\Code",
-        "$env:LOCALAPPDATA\Code",
-        "$env:USERPROFILE\.vscode",
-        "$env:TEMP\vscode-update"
-    )
-    foreach ($path in $vscode_data_paths) {
-        if (Test-Path $path) {
-            Remove-Item -Recurse -Force $path
-        }
-    }
 }
 
 # -- winget --
@@ -639,67 +621,15 @@ function win_office_disable_warn_local_link {
     }
 }
 
-function office_onenote_reset {
-    Get-Process -Name "ONENOTE", "ONENOTEM*" -ErrorAction SilentlyContinue | Stop-Process -Force
-    $onenote_path = "$env:LOCALAPPDATA\Microsoft\OneNote"
-    if (Test-Path $onenote_path) {
-        Remove-Item -Path $onenote_path -Recurse -Force
-    }
-    $creds = cmdkey.exe /list | Select-String "MicrosoftOffice16.*"
-    foreach ($line in $creds) {
-        $target = ($line -split "Target: ")[1]
-        cmdkey.exe /delete:$target
-    }
-}
-
 function office_onenote_list_large_sections {
     $target_path = "C:\Users\$env:USERNAME\AppData\Local\Microsoft\OneNote"
     $large_files = Get-ChildItem -Path $target_path -Filter *.one -Recurse | Where-Object Length -gt 100MB | Sort-Object Length -Descending
     $large_files | Select-Object -First 10 Name, @{Name = "SizeMB"; Expression = { [math]::Round($_.Length / 1MB, 2) } }
 }
 
-function office_onenote_deeplink_from_url {
-    param([Parameter(Mandatory)][string]$url)
-
-    if (-not $script:onenote_cache) { $script:onenote_cache = @{} }
-    if ($script:onenote_cache.ContainsKey($url)) { return $script:onenote_cache[$url] }
-
-    Add-Type -AssemblyName System.Web | Out-Null
-    $uri = [Uri]$url
-    $qs = [System.Web.HttpUtility]::ParseQueryString($uri.Query)
-
-    $resid = $qs['resid']
-    $root_resid = ($resid -split '!')[0]
-    $wd = $qs['wd']
-    $decoded_wd = [System.Web.HttpUtility]::UrlDecode($wd)
-    $decoded_wd -match 'target\((.+)\)' | Out-Null
-    $target = $Matches[1]
-
-    $parts = $target -split '\|'
-    $notebook_file = $parts[0]
-    $section_split = $parts[1] -split '/', 2
-    $section_guid = $section_split[0]
-    $section_name = $section_split[1]
-    $page_guid = if ($parts.Count -ge 3 -and $parts[2]) { ($parts[2] -replace '/$', '') } else { $null }
-
-    $section_name_escaped = [System.Uri]::EscapeDataString($section_name)
-    $onenote = "onenote:https://d.docs.live.net/$root_resid/$notebook_file#$section_name_escaped&section-id={$section_guid}"
-    if ($page_guid) { $onenote += "&page-id={$page_guid}" }
-    $onenote += "&end"
-
-    $script:onenote_cache[$url] = $onenote
-    $onenote
-}
 
 # -- system --
 
-function win_system_disable_power_sleep_buttons() {
-    powercfg -setacvalueindex SCHEME_CURRENT 4f971e89-eebd-4455-a8de-9e59040e7347 7648efa3-dd9c-4e3e-b566-50f929386280 0
-}
-
-function win_system_cleanup() {
-    cleanmgr /sagerun:1
-}
 
 function win_system_image_check() {
     if (Test-IsNotAdmin) { log_error "no admin. skipping."; return }
@@ -764,10 +694,6 @@ function win_onedrive_make_folder_avaliable() {
 }
 
 
-function win_onedrive_reset() {
-    & "C:\Program Files\Microsoft OneDrive\onedrive.exe" /reset
-}
-
 # -- startmenu/desktop --
 
 function win_startmenu_add_lnk_to_allapps {
@@ -801,36 +727,6 @@ function win_startmenu_add_lnk_to_allapps {
     } catch {
         log_error "An error occurred while creating the shortcut: $_"
     }
-}
-
-function win_desktop_as_slideshow_from_folder() {
-    param ([string] $folder)
-    if (-Not (Test-Path $folder)) {
-        log_error "The folder '$folder' does not exist. Please provide a valid folder."
-        exit 1
-    }
-    $folder = (Get-Item $folder).FullName
-    $slideshow_key = "HKCU:\Control Panel\Personalization\Desktop Slideshow"
-    $desktop_key = "HKCU:\Control Panel\Desktop"
-    $wallpapers_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Wallpapers"
-    New-Item $slideshow_key -Force | Out-Null
-    New-Item $desktop_key -Force | Out-Null
-    New-Item $wallpapers_key -Force | Out-Null
-    $interval_ms = 600000   # 10 minutes
-    # Desktop set tatic wallpaper
-    Set-ItemProperty -Path $desktop_key -Name "Wallpaper" -Type String -Value "C:\Users\tb931382\AppData\Roaming\Microsoft\Windows\Themes\TranscodedWallpaper" 
-    Set-ItemProperty -Path $desktop_key -Name "WallpaperStyle" -Type String -Value "6"
-    Set-ItemProperty -Path $desktop_key -Name "TileWallpaper"  -Type String -Value "0"
-    # Desktop set Slideshow interval + shuffle
-    Set-ItemProperty -Path $slideshow_key -Name "Interval" -Type DWord -Value $interval_ms
-    Set-ItemProperty -Path $slideshow_key -Name "Shuffle"  -Type DWord -Value 1
-    
-    # Explorer\Wallpapers – slideshow config
-    Set-ItemProperty -Path $wallpapers_key -Name "SlideshowEnabled" -Type DWord -Value 1
-    Set-ItemProperty -Path $wallpapers_key -Name "BackgroundType"   -Type DWord -Value 2
-    Set-ItemProperty -Path $wallpapers_key -Name "SlideshowDirectoryPath" -Type String -Value $folder
-    Set-ItemProperty -Path $wallpapers_key -Name "SlideshowTickCount" -Type DWord -Value $interval_ms
-    rundll32.exe user32.dll, UpdatePerUserSystemParameters
 }
 
 # -- win_clutter --
