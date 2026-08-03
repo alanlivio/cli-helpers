@@ -635,6 +635,18 @@ function win_startup_add_app($app_name, $exe_path) {
     New-ItemProperty -Path $reg_path -Name $app_name -Value "$exe_path" -PropertyType String -Force
 }
 
+# -- process --
+
+function win_process_stop_by_port($port_number) {
+    $target_connections = Get-NetTCPConnection -LocalPort $port_number -ErrorAction SilentlyContinue
+    if ($target_connections) {
+        $process_ids = $target_connections.OwningProcess | Where-Object { $_ -gt 0 } | Select-Object -Unique
+        foreach ($process_id in $process_ids) {
+            Stop-Process -Id $process_id -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 # -- system --
 
 function win_system_image_check() {
