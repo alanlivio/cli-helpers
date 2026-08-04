@@ -35,4 +35,31 @@ function text_to_ascii {
     }
 }
 
+# -- md -- 
+
+function md_assets_cleanup {
+    $root = "."
+    $assets = "./assets"
+    $md_files = Get-ChildItem -Path $root -Filter *.md -File -ErrorAction SilentlyContinue
+    if (-not $md_files) { return }
+    Get-ChildItem -Path $assets -File | Where-Object {
+        @('.png', '.jpeg', '.jpg', '.svg') -contains $_.Extension.ToLower()
+    } | ForEach-Object {
+        $name = [regex]::Escape($_.Name)
+        $pattern = "(?i)(?:\./)?assets/$name"
+        $referenced = $false
+        foreach ($md in $md_files) {
+            if (Select-String -Path $md.FullName -Pattern $pattern -Quiet) { $referenced = $true; break }
+        }
+        if (-not $referenced) {
+            $is_svg = ($_.Extension.ToLower() -eq '.svg')
+            Remove-Item -LiteralPath $_.FullName -Force -Verbose
+            if ($is_svg) {
+                $mmd = [IO.Path]::ChangeExtension($_.FullName, '.mmd')
+                if (Test-Path -LiteralPath $mmd) { Remove-Item -LiteralPath $mmd -Force -Verbose }
+            }
+        }
+    }
+}
+
 Export-ModuleMember -Function *
