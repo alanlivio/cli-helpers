@@ -1,4 +1,23 @@
-# -- system --
+function win_alias_setup_unix() {
+    if (Get-Command ls.exe -ErrorAction SilentlyContinue) {
+        foreach ($cmd in @('ls', 'cp', 'echo', 'pwd', 'mv', 'cat', 'rm')) {
+            Set-Alias -Name $cmd -Value "$cmd.exe" -Scope Global -Option AllScope -Force
+        }
+    } else {
+        log_msg "ls.exe is not installed. Please install coreutils with: winget install Microsoft.Coreutils"
+    }
+
+    $git_usr_bin = "$env:LOCALAPPDATA\Programs\Git\usr\bin"
+    if (-not (Test-Path "$git_usr_bin\awk.exe")) {
+        $git_cmd = (Get-Command git.exe -ErrorAction SilentlyContinue).Source
+        if ($git_cmd) { $git_usr_bin = Join-Path (Split-Path (Split-Path $git_cmd)) "usr\bin" }
+    }
+    foreach ($cmd in @('awk', 'vim')) {
+        if (Test-Path "$git_usr_bin\$cmd.exe") {
+            Set-Alias -Name $cmd -Value "$git_usr_bin\$cmd.exe" -Scope Global -Option AllScope -Force
+        }
+    }
+}
 
 function win_os_upgrade() {
     log_msg "win_os_upgrade"
