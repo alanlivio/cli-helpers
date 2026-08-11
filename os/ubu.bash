@@ -113,13 +113,10 @@ function ubu_install_miniconda() {
     rm -rf ~/bin/miniconda3/miniconda.sh
 }
 
-function ubu_install_antigravity() {
-    sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://us-central1-apt.pkg.dev/doc/repo-signing-key.gpg | \
-    sudo gpg --dearmor --yes -o /etc/apt/keyrings/antigravity-repo-key.gpg
-    echo "deb [signed-by=/etc/apt/keyrings/antigravity-repo-key.gpg] https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev/ antigravity-debian main" | \
-    sudo tee /etc/apt/sources.list.d/antigravity.list > /dev/null
-    sudo apt install antigravity
+function ubu_install_antigravity2() {
+    mkdir -p ~/.local/Antigravity-x64 ~/.local/bin
+    curl -fsSL https://storage.googleapis.com/antigravity-public/antigravity-hub/2.6.0-4603467860410368/linux-x64/Antigravity.tar.gz | tar -xz -C ~/.local/Antigravity-x64
+    ln -s -f ~/.local/Antigravity-x64/Antigravity-x64/antigravity ~/.local/bin/antigravity
 }
 
 # -- customize --
