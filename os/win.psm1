@@ -1,6 +1,6 @@
 function win_alias_setup_unix() {
     if (Get-Command ls.exe -ErrorAction SilentlyContinue) {
-        foreach ($cmd in @('ls', 'cp', 'echo', 'pwd', 'mv', 'cat', 'rm')) {
+        foreach ($cmd in @('ls', 'cp', 'echo', 'pwd', 'mv', 'cat', 'rm', 'sort')) {
             Set-Alias -Name $cmd -Value "$cmd.exe" -Scope Global -Option AllScope -Force
         }
     } else {
