@@ -1,4 +1,4 @@
-function win_alias_setup_unix() {
+function win_ps_alias_coreutils_git() {
     if (Get-Command ls.exe -ErrorAction SilentlyContinue) {
         foreach ($cmd in @('ls', 'cp', 'echo', 'pwd', 'mv', 'cat', 'rm', 'sort')) {
             Set-Alias -Name $cmd -Value "$cmd.exe" -Scope Global -Option AllScope -Force
@@ -921,6 +921,7 @@ function win_declutter_bell_sounds() {
 function win_declutter_web_search_and_widgets() {
     log_msg "win_declutter_web_search_and_widgets"
     winget_uninstall 9PC1H9VN18CM # start experiences
+    
 }
 
 function win_declutter_explorer_listing_files() {
