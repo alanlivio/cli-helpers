@@ -114,9 +114,12 @@ function ubu_install_miniconda() {
 }
 
 function ubu_install_antigravity2() {
+    local asound="libasound2"
+    apt-cache show libasound2t64 &>/dev/null && asound="libasound2t64"
+    sudo apt update && sudo apt install -y libgtk-3-0 libnss3 libgbm1 libsecret-1-0 libnotify4 libxss1 libx11-xcb1 libxtst6 xdg-utils "$asound" chromium-browser
     mkdir -p ~/.local/Antigravity-x64 ~/.local/bin
-    curl -fsSL https://storage.googleapis.com/antigravity-public/antigravity-hub/2.6.0-4603467860410368/linux-x64/Antigravity.tar.gz | tar -xz -C ~/.local/Antigravity-x64
-    ln -s -f ~/.local/Antigravity-x64/Antigravity-x64/antigravity ~/.local/bin/antigravity
+    curl -fsSL https://storage.googleapis.com/antigravity-public/antigravity-hub/2.6.0-4603467860410368/linux-x64/Antigravity.tar.gz | tar -xz --strip-components=1 -C ~/.local/Antigravity-x64
+    ln -s -f ~/.local/Antigravity-x64/antigravity ~/.local/bin/antigravity
 }
 
 # -- customize --
