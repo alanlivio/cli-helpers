@@ -19,6 +19,42 @@ function win_ps_alias_coreutils_git() {
     }
 }
 
+
+# -- winget/update --
+
+function winget_enable() {
+    Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe
+}
+
+function winget_upgrade() {
+    log_msg "winget update"
+    winget upgrade --all --accept-package-agreements --accept-source-agreements --scope user
+}
+
+function winget_install() {
+    winget list --accept-source-agreements -q $args[0] | Out-Null # first arg is the id
+    if (-not($?)) {
+        winget install "$args" --accept-package-agreements --accept-source-agreements --scope user
+    }
+}
+
+function winget_uninstall() {
+    param ([Parameter(Mandatory = $true)][string] $pkg)
+    winget list --scope user -q $pkg | Out-Null
+    if ($?) {
+        winget uninstall $pkg
+    }
+}
+
+function winget_fix_reset() {
+    sudo {
+        Remove-Item -Recurse "$env:LOCALAPPDATA\Temp\WinGet\"  -Force -ErrorAction SilentlyContinue
+        Remove-Item -Recurse "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe" -Force -ErrorAction SilentlyContinue
+        Remove-Item -Recurse "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*"  -Force -ErrorAction SilentlyContinue
+        winget source update
+    }
+}
+
 function win_os_upgrade() {
     log_msg "win_os_upgrade"
     if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping"; return }
@@ -34,6 +70,8 @@ function win_os_upgrade() {
         }
     }
 }
+
+# -- links --
 
 function create_hlink {
     param(
@@ -179,9 +217,9 @@ function win_admin_enable_ssh() {
 
 # -- install -- 
 
-function win_install_exe_from_zip() {
+function _win_install_exe_from_zip() {
     # if the basename of extractPath exist inside extracted Path so get from inside that folder
-    # For example: win_install_exe_from_zip ""...\vlc-3.0.21.zip" "...\bin\vlc-3.0.21" "vlc.exe" 
+    # For example: _win_install_exe_from_zip ""...\vlc-3.0.21.zip" "...\bin\vlc-3.0.21" "vlc.exe" 
     # there is a vlc-3.0.21 folder inside vlc-3.0.21-win64.zip
     # so the content of that nested folder is used
     param(
@@ -249,7 +287,7 @@ function win_install_vlc() {
         }
     }
     $url = "https://get.videolan.org/vlc/last/win64/$vlc_zip"
-    win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\$pkg_name" "vlc.exe"
+    _win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\$pkg_name" "vlc.exe"
     win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\$pkg_name\vlc.exe"
 }
 
@@ -274,7 +312,7 @@ function win_install_flutter() {
         }
     }
     $url = $response.base_url + '/' + $stable_release.archive
-    win_install_exe_from_zip $url $flutter_path "bin\flutter.bat"
+    _win_install_exe_from_zip $url $flutter_path "bin\flutter.bat"
     win_path_add "$flutter_path\bin"
     winget install --id Microsoft.VisualStudio.2019.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 }
@@ -300,7 +338,7 @@ function win_install_obs() {
         }
     }
     $url = "https://github.com/obsproject/obs-studio/releases/download/$version/OBS-Studio-$version-Windows-x64.zip"
-    win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\OBS" "bin\64bit\obs64.exe"
+    _win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\OBS" "bin\64bit\obs64.exe"
     win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\OBS\bin\64bit\obs64.exe" OBS
 }
 
@@ -311,7 +349,7 @@ function win_install_gh() {
     if (-not ($response)) { log_error "Download failed"; return }
     $version = $response.tag_name.Substring(1)
     $url = "https://github.com/cli/cli/releases/download/v$version/gh_${version}_windows_amd64.zip" 
-    win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\gh" "bin\gh.exe"
+    _win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\gh" "bin\gh.exe"
     win_path_add "$env:LOCALAPPDATA\Programs\gh\bin"
 }
 
@@ -323,7 +361,7 @@ function win_install_node() {
     $version = $latest_lts.version.TrimStart("v")  # e.g. "20.12.2"
     $arch = "x64"
     $url = "https://nodejs.org/dist/v$version/node-v$version-win-$arch.zip"
-    win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\nodejs" "node-v$version-win-$arch\node.exe"
+    _win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\nodejs" "node-v$version-win-$arch\node.exe"
     win_path_add "$env:LOCALAPPDATA\Programs\nodejs\node-v$version-win-$arch\"
 }
 
@@ -338,7 +376,7 @@ function win_install_latex() {
     } | Select-Object -First 1
     $url = $asset.browser_download_url
     log_msg "download and extracting StrawberryPerl (~15min)"
-    win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\StrawberryPerl" "perl\bin\perl.exe"
+    _win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\StrawberryPerl" "perl\bin\perl.exe"
     log_msg "download and extracting finished"
     win_path_add("$env:LOCALAPPDATA\Programs\StrawberryPerl\perl\bin")
     # install miktex
@@ -349,37 +387,6 @@ function win_install_tor() {
     if (Test-Path "$env:LOCALAPPDATA\Programs\TorBrowser") { return; } # winget -q return false for TorBrowser
     winget install TorProject.TorBrowser --location="$env:LOCALAPPDATA\Programs\TorBrowser" 
     win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\TorBrowser\Browser\firefox.exe" TorBrowser
-}
-
-# -- winget --
-
-function winget_upgrade() {
-    log_msg "winget update"
-    winget upgrade --all --accept-package-agreements --accept-source-agreements --scope user
-}
-
-function winget_install() {
-    winget list --accept-source-agreements -q $args[0] | Out-Null # first arg is the id
-    if (-not($?)) {
-        winget install "$args" --accept-package-agreements --accept-source-agreements --scope user
-    }
-}
-
-function winget_uninstall() {
-    param ([Parameter(Mandatory = $true)][string] $pkg)
-    winget list --scope user -q $pkg | Out-Null
-    if ($?) {
-        winget uninstall $pkg
-    }
-}
-
-function winget_fix_installation() {
-    sudo {
-        Remove-Item -Recurse "$env:LOCALAPPDATA\Temp\WinGet\"  -Force -ErrorAction SilentlyContinue
-        Remove-Item -Recurse "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe" -Force -ErrorAction SilentlyContinue
-        Remove-Item -Recurse "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*"  -Force -ErrorAction SilentlyContinue
-        winget source update
-    }
 }
 
 # -- env --
