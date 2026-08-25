@@ -381,6 +381,9 @@ function win_install_latex() {
     win_path_add("$env:LOCALAPPDATA\Programs\StrawberryPerl\perl\bin")
     # install miktex
     winget_install MikTex.MikTex
+    win_path_reload
+    miktex packages update-package-database
+    miktex packages update
 }
 
 function win_install_tor() {
