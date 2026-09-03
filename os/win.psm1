@@ -50,6 +50,7 @@ function winget_fix_reset() {
     Remove-Item -Recurse "$env:LOCALAPPDATA\Temp\WinGet\"  -Force -ErrorAction SilentlyContinue
     Remove-Item -Recurse "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe" -Force -ErrorAction SilentlyContinue
     Remove-Item -Recurse "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*" -Force -ErrorAction SilentlyContinue
+    winget source reset --force
     winget source update
 }
 
