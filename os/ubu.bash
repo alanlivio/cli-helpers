@@ -121,13 +121,3 @@ function ubu_install_antigravity2() {
     curl -fsSL https://storage.googleapis.com/antigravity-public/antigravity-hub/2.6.0-4603467860410368/linux-x64/Antigravity.tar.gz | tar -xz --strip-components=1 -C ~/.local/Antigravity-x64
     ln -s -f ~/.local/Antigravity-x64/antigravity ~/.local/bin/antigravity
 }
-
-# -- customize --
-
-function gnome_declutter_files() {
-    gsettings set org.gnome.desktop.privacy remember-recent-files false
-    gsettings set org.gnome.nautilus.list-view default-zoom-level 'small'
-    gsettings set org.gnome.nautilus.list-view default-visible-columns "['name', 'size']"
-    gsettings set org.gnome.nautilus.list-view use-tree-view true
-    gsettings set org.gnome.nautilus.preferences default-folder-viewer 'list-view'
-}
