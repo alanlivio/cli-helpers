@@ -166,6 +166,37 @@ function create_junction {
     }
 }
 
+function create_shortcut {
+    param(
+        [Parameter(Mandatory)][string]$target_path,
+        [Parameter(Mandatory)][string]$source_path
+    )
+    if (-not $target_path.EndsWith(".lnk")) {
+        $target_path += ".lnk"
+    }
+    if (-not (Test-Path $source_path) -and -not $source_path.StartsWith("\\")) {
+        log_error "Source path '$source_path' does not exist."
+        return
+    }
+    $target_dir = Split-Path $target_path -Parent
+    if ($target_dir -and -not (Test-Path $target_dir)) {
+        New-Item -ItemType Directory -Path $target_dir -Force | Out-Null
+    }
+    if (Test-Path $target_path) {
+        Remove-Item $target_path -Force -Recurse
+    }
+    try {
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($target_path)
+        $shortcut.TargetPath = $source_path
+        $shortcut.WorkingDirectory = $source_path
+        $shortcut.Description = "Shortcut to $source_path"
+        $shortcut.Save()
+    } catch {
+        log_error "Failed to create shortcut at '$target_path': $_"
+    }
+}
+
 
 # -- admin --
 
