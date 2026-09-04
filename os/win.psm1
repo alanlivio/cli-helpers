@@ -517,124 +517,6 @@ function explorer_hide_home_dotfiles {
     }
 }
 
-# -- wsl --
-
-function bash_ic() {
-    param(
-        [Parameter(ValueFromRemainingArguments = $true)]
-        [string[]]$cmd
-    )
-    bash -i -c "$cmd"
-}
-
-function wsl_list() {
-    wsl -l -v
-}
-
-function wsl_list_running() {
-    wsl -l -v --running
-}
-
-function wsl_get_default() {
-    [System.Text.Encoding]::Unicode.GetString([System.Text.Encoding]::UTF8.GetBytes((wsl -l))) -split '\s\s+' | ForEach-Object {
-        if ($_.Contains('(')) {
-            return $_.Split(' ')[0]
-        }
-    }
-}
-
-function wsl_get_default_version() {
-    Foreach ($i in (wsl -l -v)) {
-        if ($i.Contains('*')) {
-            return $i.Split(' ')[-1]
-        }
-    }
-}
-
-function wsl_terminate() {
-    wsl -t (wsl_get_default)
-}
-
-function wsl_install_and_setup_default_user() {
-    log_msg "Checking WSL version..."
-    wsl --version
-    if (-not $?) {
-        log_error "> Windows feature for WSL not enabled!"
-        return
-    }
-
-    log_msg "Checking WSL update..."
-    wsl.exe --update
-    if (-not $?) {
-        log_error "> Windows feature for WSL not enabled!"
-        return
-    }
-    log_msg "Checking WSL distributions..."
-    wsl --list 
-
-    log_msg "Setup Ubuntu..."
-    $ubuntuInstalled = (wsl --list --quiet) -contains "Ubuntu"
-    if ($ubuntuInstalled) {
-        log_msg "> Ubuntu is already installed. Skipping installation."
-    } else {
-        log_msg "> Ubuntu not found. Installing WSL with Ubuntu..."
-        wsl --install -d Ubuntu
-    }
-
-    # getting the default user created from wsl --install -d Ubuntu
-    $defaultUser = (wsl whoami).Trim()
-    if (-not $?) {
-        log_error "> Default user not created"
-        return
-    }
-
-    # setup wsl mounting
-    # options="metadata,umask=0022,fmask=11"
-    log_msg "> Writing /etc/wsl.conf inside Ubuntu..."
-    $wslConfContent = @"
-[boot]
-systemd=true
-[automount]
-options="metadata,umask=0022"
-[user]
-default=$defaultUser
-"@
-    wsl -d Ubuntu -u root -- bash -c "echo '$wslConfContent' > /etc/wsl.conf"
-
-    # setup defaultUser 
-    log_msg "> Setting default user '$defaultUser' as sudoer in Ubuntu..."
-    wsl -d Ubuntu -u root -- bash -c "grep -q '^$defaultUser\\b' /etc/sudoers || echo '${defaultUser} ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers" 2>$null
-}
-
-function wsl_use_same_home() {
-    log_msg "setup wsl to use same home"
-    log_msg "target wsl is $(wsl_get_default)"
-    if ((wsl echo '$HOME').Contains("Users")) {
-        log_msg "WSL already use windows UserProfile as home."
-        return
-    }
-    log_msg "terminate wsl"
-    wsl_terminate
-    $user_name = (wsl whoami)
-    log_msg "change default dir to /mnt/c/Users/"
-    wsl -u root skill -KILL -u $user_name
-    wsl -u root usermod -d /mnt/c/Users/$env:UserName $user_name
-    log_msg "create a link /home/user at /mnt/c/Users/user"
-    wsl -u root rm -rf /home/$user_name
-    wsl -u root ln -s /mnt/c/Users/$env:UserName /home/$user_name
-}
-
-function wsl_fix_metadata() {
-    log_msg "wsl_fix_metadata"
-    # https://docs.microsoft.com/en-us/windows/wsl/wsl-config
-    # https://github.com/Microsoft/WSL/issues/3138
-    # https://devblogs.microsoft.com/commandline/chmod-chown-wsl-improvements/
-    log_msg "terminate wsl"
-    wsl_terminate
-    wsl -u root bash -c 'echo "[automount]" > /etc/wsl.conf'
-    wsl -u root bash -c 'echo "options=\"metadata,umask=0022,fmask=11\"" >> /etc/wsl.conf'
-}
-
 # -- office --
 
 function win_office_word_template_cleanup {
@@ -665,32 +547,12 @@ function win_office_disable_zoom {
     }    
 }
 
-function win_office_disable_warn_local_link {
-    # requireq admin
-    $keys = @(
-        "HKCU:\Software\Microsoft\Office\16.0\Common\Security",
-        "HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Security"
-    )
-
-    foreach ($path in $keys) {
-        if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
-        Set-ItemProperty -Path $path -Name "DisableHyperlinkWarning" -Value 1 -Type DWord -Force | Out-Null
-    }
-}
-
 function office_onenote_list_large_sections {
     $target_path = "C:\Users\$env:USERNAME\AppData\Local\Microsoft\OneNote"
     $large_files = Get-ChildItem -Path $target_path -Filter *.one -Recurse | Where-Object Length -gt 100MB | Sort-Object Length -Descending
     $large_files | Select-Object -First 10 Name, @{Name = "SizeMB"; Expression = { [math]::Round($_.Length / 1MB, 2) } }
 }
 
-
-# -- startup --
-
-function win_startup_add_app($app_name, $exe_path) {
-    $reg_path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-    New-ItemProperty -Path $reg_path -Name $app_name -Value "$exe_path" -PropertyType String -Force
-}
 
 # -- process --
 
