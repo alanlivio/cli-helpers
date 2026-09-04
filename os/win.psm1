@@ -961,7 +961,15 @@ function win_declutter_bell_sounds() {
 function win_declutter_web_search_and_widgets() {
     log_msg "win_declutter_web_search_and_widgets"
     winget_uninstall 9PC1H9VN18CM # start experiences
-    
+    $search_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
+    $search_settings_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\SearchSettings"
+    New-Item -Path $search_key -Force | Out-Null
+    New-Item -Path $search_settings_key -Force | Out-Null
+    Set-ItemProperty -Path $search_key -Name "BingSearchEnabled" -Value 0 -Type DWord
+    Set-ItemProperty -Path $search_settings_key -Name "IsDeviceSearchHistoryEnabled" -Value 0 -Type DWord
+    Set-ItemProperty -Path $search_settings_key -Name "IsDynamicSearchBoxEnabled" -Value 0 -Type DWord
+    Set-ItemProperty -Path $search_settings_key -Name "IsMSACloudSearchEnabled" -Value 0 -Type DWord
+    Set-ItemProperty -Path $search_settings_key -Name "IsAADCloudSearchEnabled" -Value 0 -Type DWord
 }
 
 function win_declutter_explorer_listing_files() {
