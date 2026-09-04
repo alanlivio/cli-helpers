@@ -320,7 +320,7 @@ function win_install_vlc() {
 }
 
 function win_install_flutter() {
-    $flutter_path = "$env:LOCALAPPDATA\Programs\flutter"
+    $flutter_path = "C:\flutter"
     $flutter_bat = "$flutter_path\bin\flutter.bat"
     $response = Invoke-RestMethod -Uri "https://storage.googleapis.com/flutter_infra_release/releases/releases_windows.json"
     if (-not ($response)) { log_error "Download failed"; return }
