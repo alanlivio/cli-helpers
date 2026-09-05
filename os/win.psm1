@@ -1,24 +1,32 @@
-function win_ps_alias_coreutils_git() {
+function win_ps_setup_unix_alias() {
+    # winget install Microsoft.Coreutils
     if (Get-Command ls.exe -ErrorAction SilentlyContinue) {
         foreach ($cmd in @('ls', 'cp', 'echo', 'pwd', 'mv', 'cat', 'rm', 'sort')) {
             Set-Alias -Name $cmd -Value "$cmd.exe" -Scope Global -Option AllScope -Force
         }
     } else {
-        log_msg "ls.exe is not installed. Please install coreutils with: winget install Microsoft.Coreutils"
+        log_msg "Please install coreutils with: winget install Microsoft.Coreutils"
     }
-
+    # winget install git.git
     $git_usr_bin = "$env:LOCALAPPDATA\Programs\Git\usr\bin"
-    if (-not (Test-Path "$git_usr_bin\awk.exe")) {
+    if (Test-Path "$git_usr_bin\vim.exe") {
         $git_cmd = (Get-Command git.exe -ErrorAction SilentlyContinue).Source
         if ($git_cmd) { $git_usr_bin = Join-Path (Split-Path (Split-Path $git_cmd)) "usr\bin" }
-    }
-    foreach ($cmd in @('awk', 'vim')) {
-        if (Test-Path "$git_usr_bin\$cmd.exe") {
-            Set-Alias -Name $cmd -Value "$git_usr_bin\$cmd.exe" -Scope Global -Option AllScope -Force
+        foreach ($cmd in @('awk', 'vim')) {
+            if (Test-Path "$git_usr_bin\$cmd.exe") {
+                Set-Alias -Name $cmd -Value "$git_usr_bin\$cmd.exe" -Scope Global -Option AllScope -Force
+            }
         }
+    } else {
+        log_msg "Please install git with: winget install git.git"
+    }
+    # winget install cURL.cURL
+    if (Get-Command curl.exe) {
+        Set-Alias -Name curl -Value curl.exe -Scope Global -Option AllScope -Force
+    } else {
+        log_msg "Please install curl with: winget install cURL.cURL"
     }
 }
-
 
 # -- winget/update --
 
