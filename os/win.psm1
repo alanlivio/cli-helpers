@@ -911,8 +911,17 @@ function win_declutter_xbox() {
 
 function win_ps_prompt_with_slash() {
     function Global:prompt() {
-        $rawPath = $pwd.Path
-        $path = ($rawPath -replace ('^' + [regex]::Escape($HOME)), '~').Replace('\', '/') -replace '^([A-Za-z]):', '/$1'
+        $rawPath = $pwd.Path -replace '^[^\:]+::', ''
+        if ($rawPath -match '^\\+wsl') { 
+            # let \\wsl.localhost\Ubuntu\home\...
+            $path = $rawPath 
+        } else {
+            # use slash and ~
+            $path = ($rawPath -replace ('^' + [regex]::Escape($HOME)), '~').Replace('\', '/')
+            if ($path -match '^([A-Za-z]):(.*)') {
+                $path = '/' + $matches[1] + $matches[2]
+            }
+        }
         return ("{0}[32m{1}@{2}{0}[0m:{0}[34m{3}{0}[0m`n> " -f [char]27, $env:USERNAME, $env:COMPUTERNAME, $path)
     }
 }
