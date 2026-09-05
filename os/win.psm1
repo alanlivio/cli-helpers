@@ -909,8 +909,19 @@ function win_declutter_xbox() {
     winget_uninstall Microsoft.XboxSpeechToTextOverlay_8wekyb3d8bbwe
 }
 
-function win_ps_using_slash() {
-    # Based on https://github.com/PowerShell/PowerShell/discussions/16671#discussioncomment-1869254
+function win_ps_prompt_with_slash() {
+    function Global:prompt() {
+        $rawPath = $pwd.Path
+        $path = ($rawPath -replace ('^' + [regex]::Escape($HOME)), '~').Replace('\', '/') -replace '^([A-Za-z]):', '/$1'
+        return ("{0}[32m{1}@{2}{0}[0m:{0}[34m{3}{0}[0m`n> " -f [char]27, $env:USERNAME, $env:COMPUTERNAME, $path)
+    }
+}
+
+function win_ps_expansion_with_slash() {
+    # https://stackoverflow.com/questions/8264655/how-to-make-powershell-tab-completion-work-like-bash
+    Set-PSReadlineOption -BellStyle None
+    Set-PSReadlineKeyHandler -Key Tab -Function MenuComplete 
+    # https://github.com/PowerShell/PowerShell/discussions/16671#discussioncomment-1869254
     if ($env:OS -ne 'Windows_NT') { return };
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
     $global:PSUseSlash = $true
