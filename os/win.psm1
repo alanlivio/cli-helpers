@@ -76,6 +76,21 @@ function win_os_upgrade() {
     }
 }
 
+# -- wsl --
+
+function wsl_get_default() {
+    [System.Text.Encoding]::Unicode.GetString([System.Text.Encoding]::UTF8.GetBytes((wsl -l))) -split '\s\s+' | ForEach-Object {
+        if ($_.Contains('(')) {
+            return $_.Split(' ')[0]
+        }
+    }
+}
+
+function wsl_terminate() {
+    wsl -t (wsl_get_default)
+}
+
+
 # -- links --
 
 function create_hlink {
