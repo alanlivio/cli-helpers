@@ -268,52 +268,34 @@ function win_admin_enable_ssh() {
 
 # -- install -- 
 
-function _win_install_exe_from_zip() {
-    # if the basename of extractPath exist inside extracted Path so get from inside that folder
-    # For example: _win_install_exe_from_zip ""...\vlc-3.0.21.zip" "...\bin\vlc-3.0.21" "vlc.exe" 
-    # there is a vlc-3.0.21 folder inside vlc-3.0.21-win64.zip
-    # so the content of that nested folder is used
+function zip_download_extract() {
+    # Extracts an archive (downloading first if URL) directly into the target folder.
+    # Example: zip_download_extract "...\OBS.zip" "$env:LOCALAPPDATA\Programs\OBS"
     param(
         [Parameter(Mandatory = $true)][string]$url_or_path_to_zip,
-        [Parameter(Mandatory = $true)][string]$extract_path, # it should has a name if the zip has no main folder
-        [Parameter(Mandatory = $true)][string]$exe_path_on_zip # exe inside the zip
+        [Parameter(Mandatory = $true)][string]$target_path
     )
-    $exe_path = Join-Path $extract_path $exe_path_on_zip
-    $source_zip_file_path = ""
-    if (!(Test-Path $exe_path)) {
-        # download
-        if ($url_or_path_to_zip.StartsWith("http://") -or $url_or_path_to_zip.StartsWith("https://")) {
-            $url = New-Object System.Uri($url_or_path_to_zip)
-            $derived_zip_file_name = [System.IO.Path]::GetFileName($url.LocalPath)
-            $out_zip = Join-Path $env:TEMP $derived_zip_file_name
-            if (Test-Path $out_zip) {
-                log_msg "skip download and using existing $out_zip"
-            } else {
-                $web_client = New-Object System.Net.WebClient
-                $web_client.DownloadFile($url, $out_zip)
-                if (!(Test-Path $out_zip)) { log_error "download failed"; return }
-            }
-            $source_zip_file_path = $out_zip
+    $zip_file_path = ""
+    if ($url_or_path_to_zip.StartsWith("http://") -or $url_or_path_to_zip.StartsWith("https://")) {
+        $url = New-Object System.Uri($url_or_path_to_zip)
+        $derived_zip_file_name = [System.IO.Path]::GetFileName($url.LocalPath)
+        $out_zip = Join-Path $env:TEMP $derived_zip_file_name
+        if (Test-Path $out_zip) {
+            log_msg "skip download and using existing $out_zip"
         } else {
-            $source_zip_file_path = $url_or_path_to_zip
+            $web_client = New-Object System.Net.WebClient
+            $web_client.DownloadFile($url, $out_zip)
+            if (!(Test-Path $out_zip)) { log_error "download failed"; return }
         }
-        # extract, using a randomExtractFolder may needed when no internal folder.
-        $random_extract_folder = [System.Guid]::NewGuid().ToString().Replace("-", "")
-        $temp_extract_path = Join-Path $env:TEMP $random_extract_folder
-        New-Item -ItemType Directory -Path $temp_extract_path | Out-Null
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        try { 
-            [System.IO.Compression.ZipFile]::ExtractToDirectory($source_zip_file_path, $temp_extract_path) 
-        } catch { log_error "extract failed"; return }
-        if (!(Test-Path $extract_path)) { New-Item -ItemType Directory -Path $extract_path | Out-Null }
-        # if the basename of extract_path exist inside extracted Path so get from inside that folder
-        $extract_path_basename = (Split-Path -Path $extract_path -Leaf)
-        if (Test-Path (Join-Path $temp_extract_path $extract_path_basename)) {
-            Copy-Item -Path "$temp_extract_path\$extract_path_basename\*" -Destination $extract_path -Recurse -Force
-        } else {
-            Copy-Item -Path "$temp_extract_path\*" -Destination $extract_path -Recurse -Force
-        }
+        $zip_file_path = $out_zip
+    } else {
+        $zip_file_path = $url_or_path_to_zip
     }
+    if (!(Test-Path $target_path)) { New-Item -ItemType Directory -Path $target_path | Out-Null }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    try { 
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($zip_file_path, $target_path) 
+    } catch { log_error "extract failed"; return }
 }
 
 function win_install_vlc() {
@@ -338,7 +320,7 @@ function win_install_vlc() {
         }
     }
     $url = "https://get.videolan.org/vlc/last/win64/$vlc_zip"
-    _win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\$pkg_name" "vlc.exe"
+    zip_download_extract $url "$env:LOCALAPPDATA\Programs"
     win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\$pkg_name\vlc.exe"
 }
 
@@ -363,7 +345,7 @@ function win_install_flutter() {
         }
     }
     $url = $response.base_url + '/' + $stable_release.archive
-    _win_install_exe_from_zip $url $flutter_path "bin\flutter.bat"
+    zip_download_extract $url (Split-Path -Path $flutter_path -Parent)
     win_path_add "$flutter_path\bin"
     winget install --id Microsoft.VisualStudio.2019.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 }
@@ -389,7 +371,7 @@ function win_install_obs() {
         }
     }
     $url = "https://github.com/obsproject/obs-studio/releases/download/$version/OBS-Studio-$version-Windows-x64.zip"
-    _win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\OBS" "bin\64bit\obs64.exe"
+    zip_download_extract $url "$env:LOCALAPPDATA\Programs\OBS"
     win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\OBS\bin\64bit\obs64.exe" OBS
 }
 
@@ -400,7 +382,7 @@ function win_install_gh() {
     if (-not ($response)) { log_error "Download failed"; return }
     $version = $response.tag_name.Substring(1)
     $url = "https://github.com/cli/cli/releases/download/v$version/gh_${version}_windows_amd64.zip" 
-    _win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\gh" "bin\gh.exe"
+    zip_download_extract $url "$env:LOCALAPPDATA\Programs\gh"
     win_path_add "$env:LOCALAPPDATA\Programs\gh\bin"
 }
 
@@ -412,7 +394,7 @@ function win_install_node() {
     $version = $latest_lts.version.TrimStart("v")  # e.g. "20.12.2"
     $arch = "x64"
     $url = "https://nodejs.org/dist/v$version/node-v$version-win-$arch.zip"
-    _win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\nodejs" "node-v$version-win-$arch\node.exe"
+    zip_download_extract $url "$env:LOCALAPPDATA\Programs\nodejs"
     win_path_add "$env:LOCALAPPDATA\Programs\nodejs\node-v$version-win-$arch\"
 }
 
@@ -427,7 +409,7 @@ function win_install_latex() {
     } | Select-Object -First 1
     $url = $asset.browser_download_url
     log_msg "download and extracting StrawberryPerl (~15min)"
-    _win_install_exe_from_zip $url "$env:LOCALAPPDATA\Programs\StrawberryPerl" "perl\bin\perl.exe"
+    zip_download_extract $url "$env:LOCALAPPDATA\Programs\StrawberryPerl"
     log_msg "download and extracting finished"
     win_path_add("$env:LOCALAPPDATA\Programs\StrawberryPerl\perl\bin")
     # install miktex
