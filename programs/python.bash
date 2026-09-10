@@ -1,8 +1,27 @@
 alias python_clean_cache='find . | grep -E "(/__pycache__$|\.pyc$|\.pyo$)" | xargs rm -rf'
 
 function pip_install() {
-    for pkg in $@; do
-        pip show $pkg &>/dev/null || pip install -U $pkg
+    local pkgs=()
+    while [[ $# -gt 0 ]]; do
+        if [[ "$1" == "-r" && -n "$2" ]]; then
+            if [[ -f "$2" ]]; then
+                while IFS= read -r line || [[ -n "$line" ]]; do
+                    line="${line%%#*}"
+                    line="$(echo "$line" | xargs)"
+                    [[ -n "$line" ]] && pkgs+=("$line")
+                done < "$2"
+            fi
+            shift 2
+        else
+            pkgs+=("$1")
+            shift 1
+        fi
+    done
+
+    for pkg in "${pkgs[@]}"; do
+        local name="${pkg%%[=><~;@]*}"
+        name="$(echo "$name" | xargs)"
+        pip show "$name" &>/dev/null || pip install -U "$pkg"
     done
 }
 
@@ -10,7 +29,17 @@ function python_fix_error_externally_managed_environment() {
     python -m pip config set global.break-system-packages true
 }
 
-function python_http_server_cur_folder(){
+function python_venv_activate() {
+    [[ ! -d .venv ]] && python -m venv .venv
+    source .venv/bin/activate
+    pip_install -r requirements.txt
+}
+
+function python_venv_deactivate() {
+    deactivate
+}
+
+function python_http_server_cur_folder() {
     python -c "import sys, socket, subprocess, signal; signal.signal(signal.SIGINT, signal.SIG_IGN); s = socket.socket(); res = s.connect_ex(('127.0.0.1', 8000)); s.close(); sys.exit('Port 8000 is already in use') if res == 0 else print('http://localhost:8000', flush=True); subprocess.run([sys.executable, '-m', 'http.server', '8000'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)"
 }
 
