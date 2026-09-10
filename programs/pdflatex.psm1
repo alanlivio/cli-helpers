@@ -11,4 +11,14 @@ function latex_word_count() {
     }
 }
 
+function latex_zip_source() {
+    param([string]$output = "source.zip")
+    if ([string]::IsNullOrWhiteSpace($output)) { $output = "source.zip" }
+    if (-not $output.EndsWith(".zip")) { $output += ".zip" }
+    $items = @('*.tex', '*.bib', '*.cls', '*.png', 'fig', 'figure', 'assets') | Where-Object { Test-Path $_ }
+    if ($items) {
+        Compress-Archive -Path $items -DestinationPath $output -Force
+    }
+}
+
 Export-ModuleMember -Function *
