@@ -1,16 +1,3 @@
-function win_ps_setup_unix_alias() {
-    # Use C:\WINDOWS\system32\curl.exe
-    Set-Alias -Name curl -Value curl.exe -Scope Global -Option AllScope -Force
-    # winget install Microsoft.Coreutils
-    if (Get-Command ls.exe -ErrorAction SilentlyContinue) {
-        foreach ($cmd in @('ls', 'cp', 'echo', 'pwd', 'mv', 'cat', 'rm', 'sort')) {
-            Set-Alias -Name $cmd -Value "$cmd.exe" -Scope Global -Option AllScope -Force
-        }
-    } else {
-        log_msg "Please install coreutils with: winget install Microsoft.Coreutils"
-    }
-}
-
 # -- winget/update --
 
 function winget_enable() {
