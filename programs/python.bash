@@ -29,7 +29,7 @@ function python_fix_error_externally_managed_environment() {
     python -m pip config set global.break-system-packages true
 }
 
-function python_venv_activate() {
+function python_venv() {
     [[ ! -d .venv ]] && python -m venv .venv
     source .venv/bin/activate
     pip_install -r requirements.txt

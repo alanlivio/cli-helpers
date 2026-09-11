@@ -32,7 +32,7 @@ function pip_install() {
     }
 }
 
-function python_venv_activate() {
+function python_venv() {
     if (-not (Test-Path .venv)) {
         python -m venv .venv
     }
