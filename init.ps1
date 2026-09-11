@@ -1,8 +1,11 @@
 $HELPERS_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
+function log_msg { Write-Host -ForegroundColor DarkYellow "--" ($args -join " ") }
+function log_error { Write-Host -ForegroundColor DarkRed "--" ($args -join " ") }
+function ps_profile_reload() { . $PROFILE.CurrentUserAllHosts }
+function ps_is_running_as_sudo { ([System.Security.Principal.WindowsPrincipal] [System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator) }
+function ps_func_show($name) { Get-Content Function:\$name }
 
 # -- load os/<name>.ps1 files -- 
-
-Import-Module "$HELPERS_DIR\os\any.psm1"
 
 $is_windows = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
 $is_linux = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Linux)

@@ -1,8 +1,10 @@
 HELPERS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
 
-# -- load os/<name>.bash files --
+function log_error { echo -e "\033[00;31m-- $* \033[00m";}
+function log_msg { echo -e "\033[00;33m-- $* \033[00m";}
+alias bashrc_reload='source $HOME/.bashrc'
 
-source "$HELPERS_DIR/os/any.bash"
+# -- load os/<name>.bash files --
 
 if [[ $OSTYPE == msys* || -n $WSL_DISTRO_NAME ]]; then
     source "$HELPERS_DIR/os/win.bash"

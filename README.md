@@ -14,7 +14,6 @@ flowchart LR
         ...
     "]
     OS-dependent["
-        os/any.bash
         os/win.bash
         os/ubu.bash
         ...
@@ -38,7 +37,6 @@ flowchart LR
         ...
     "]
     OS-dependent["
-        os/any.ps1
         os/win.ps1
         os/ubu.ps1
         ...

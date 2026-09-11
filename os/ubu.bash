@@ -1,3 +1,9 @@
+alias du_folder_count_files='find . -maxdepth 1 -type f | wc -l'
+alias du_folder_count_files_recusive='find . -maxdepth 1 -type f | wc -l'
+alias du_folder_list_sorted_by_size='du -ahd 1 | sort -h'
+alias du_folder_find_file_with_crlf='find . -not -type d -exec file "{}" ";" | grep CRLF'
+alias passwd_generate='echo $(tr -dc "A-Za-z0-9!?%=" < /dev/urandom | head -c 12)'
+
 # -- apt --
 
 function apt_upgrade() {
@@ -88,11 +94,6 @@ function user_as_sudoer_no_password() {
 
 function ubu_install_latex() {
     sudo apt install -y latexmk texlive-latex-extra texlive-fonts-extra texlive-extra-utils
-}
-
-function ubu_install_node() {
-    type -p node >/dev/null || sudo snap install --classic node
-    type -p npm >/dev/null || sudo npm install -g npm
 }
 
 function ubu_install_gh() {
