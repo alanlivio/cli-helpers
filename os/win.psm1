@@ -516,28 +516,41 @@ function win_office_word_template_cleanup {
         Remove-Item $normal_path -Force
     }
 }
-    
-    
+
+function win_word_doc_clean_comments_revisions_info {
+    param([Parameter(Mandatory)][string]$path)
+
+    $resolved_path = (Resolve-Path $path).Path
+    $word = New-Object -ComObject Word.Application
+    $word.Visible = $false
+    try {
+        $doc = $word.Documents.Open($resolved_path)
+        if ($doc.Comments.Count -gt 0) {
+            $doc.DeleteAllComments()
+        }
+        $doc.AcceptAllRevisions()
+        $doc.RemoveDocumentInformation(99)
+        $doc.RemovePersonalInformation = $false
+        $doc.Save()
+        $doc.Close()
+    } finally {
+        $word.Quit()
+        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($word) | Out-Null
+    }
+}
+
 function win_office_disable_zoom {
     $paths = @(
         "HKCU:\Software\Microsoft\Office\Outlook\Addins\ZoomOutlookAddIn",
-        "HKLM:\SOFTWARE\Microsoft\Office\Outlook\Addins\ZoomOutlookAddIn",
-        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Office\Outlook\Addins\ZoomOutlookAddIn"
+        "HKLM:\Software\Microsoft\Office\Outlook\Addins\ZoomOutlookAddIn",
+        "HKLM:\Software\WOW6432Node\Microsoft\Office\Outlook\Addins\ZoomOutlookAddIn"
     )
-
     foreach ($path in $paths) {
         if (Test-Path $path) {
             Set-ItemProperty -Path $path -Name "LoadBehavior" -Value 0
         }
     }    
 }
-
-function office_onenote_list_large_sections {
-    $target_path = "C:\Users\$env:USERNAME\AppData\Local\Microsoft\OneNote"
-    $large_files = Get-ChildItem -Path $target_path -Filter *.one -Recurse | Where-Object Length -gt 100MB | Sort-Object Length -Descending
-    $large_files | Select-Object -First 10 Name, @{Name = "SizeMB"; Expression = { [math]::Round($_.Length / 1MB, 2) } }
-}
-
 
 # -- process --
 
