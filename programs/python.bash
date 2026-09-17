@@ -40,7 +40,18 @@ function python_venv_deactivate() {
 }
 
 function python_http_server_cur_folder() {
-    python -c "import sys, socket, subprocess, signal; signal.signal(signal.SIGINT, signal.SIG_IGN); s = socket.socket(); res = s.connect_ex(('127.0.0.1', 8000)); s.close(); sys.exit('Port 8000 is already in use') if res == 0 else print('http://localhost:8000', flush=True); subprocess.run([sys.executable, '-m', 'http.server', '8000'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)"
+    python -c "import sys, socket, subprocess
+s = socket.socket()
+try:
+    s.bind(('', 8000))
+    s.close()
+except OSError:
+    sys.exit('Port 8000 is already in use')
+print('http://localhost:8000', flush=True)
+try:
+    subprocess.run([sys.executable, '-m', 'http.server', '8000'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+except KeyboardInterrupt:
+    pass"
 }
 
     
