@@ -3,6 +3,7 @@ alias du_folder_count_files_recusive='find . -maxdepth 1 -type f | wc -l'
 alias du_folder_list_sorted_by_size='du -ahd 1 | sort -h'
 alias du_folder_find_file_with_crlf='find . -not -type d -exec file "{}" ";" | grep CRLF'
 alias passwd_generate='echo $(tr -dc "A-Za-z0-9!?%=" < /dev/urandom | head -c 12)'
+alias df_root='df -h /'
 
 # -- apt --
 
