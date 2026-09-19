@@ -72,6 +72,16 @@ function ubu_increase_swap() {
     echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 }
 
+function ubu_set_linger_background_user(){
+    local target_user="${1:-$USER}"
+    if ! id "$target_user" >/dev/null 2>&1; then
+        sudo useradd -m -s /bin/bash "$target_user"
+    fi
+    if [ "$(loginctl show-user "$target_user" -p Linger --value 2>/dev/null)" != "yes" ]; then
+        sudo loginctl enable-linger "$target_user"
+    fi
+}
+
 alias ubu_product_name='sudo dmidecode -s system-product-name'
 alias ubu_gpu_list="lspci -nn | grep -E 'VGA|Display'"
 alias ubu_initd_services_list='service --status-all'
