@@ -706,6 +706,15 @@ function win_declutter_ui() {
     Set-ItemProperty -Path $advanced_key -Name "HideIcons" -Value 1
     New-Item -Path $taskbar_key -Force | Out-Null
     Set-ItemProperty -Path $taskbar_key -Name "TaskbarEndTask" -Value 1 -Force
+    
+    # simple taskbar and multitasking
+    Set-ItemProperty -Path $advanced_key -Name TaskbarAl -Value 1 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name TaskbarBadges -Value 0 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name MMTaskbarEnabled -Value 1 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name MMTaskbarMode -Value 2 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name TaskbarShareWindow -Value 1 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name "MultiTaskingAltTabFilter" -Value 3 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "SnapAssist" -Value 0 -Type Dword
 }
 
 function win_declutter_home_folders() {
