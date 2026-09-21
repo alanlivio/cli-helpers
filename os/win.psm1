@@ -12,7 +12,7 @@ function winget_upgrade() {
 function winget_install() {
     winget list --accept-source-agreements -q $args[0] | Out-Null # first arg is the id
     if (-not($?)) {
-        winget install "$args" --accept-package-agreements --accept-source-agreements --scope user
+        winget install @args --accept-package-agreements --accept-source-agreements --scope user
     }
 }
 
