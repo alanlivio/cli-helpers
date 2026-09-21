@@ -61,6 +61,7 @@ class TestScriptLoading(unittest.TestCase):
                   glob.glob(os.path.join(self.root_dir, 'os', '*.psm1')) + \
                   glob.glob(os.path.join(self.root_dir, 'programs', '*.ps1')) + \
                   glob.glob(os.path.join(self.root_dir, 'programs', '*.psm1')) + \
+                  [os.path.join(self.root_dir, 'gui', 'gui.ps1')] + \
                   [os.path.join(self.root_dir, 'init.ps1')]
 
         for script in scripts:
