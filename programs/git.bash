@@ -27,16 +27,24 @@ function git_clone_or_pull() {
 function git_pull_recursive() {
     : ${1?"Usage: git_pull_recursive <folder>"}
     local folder=$1
-    if [[ ! -d $folder ]]; then return; fi;
+    if [[ ! -d $folder ]]; then return 1; fi;
+    local pulled=1
     for sub in "$folder" "$folder"/*; do
         if [[ -d "$sub/.git" ]]; then
             (
-                cd "$sub" 
+                cd "$sub"
                 log_msg "git pull at $sub"
+                local before=$(git rev-parse HEAD 2>/dev/null)
                 git pull -q
-            )
+                local after=$(git rev-parse HEAD 2>/dev/null)
+                if [[ -n "$before" && -n "$after" && "$before" != "$after" ]]; then
+                    exit 0
+                fi
+                exit 1
+            ) && pulled=0
         fi
     done
+    return $pulled
 }
 
 function git_gitignore_types_list() {
