@@ -48,22 +48,19 @@ function win_os_upgrade() {
 
 # -- coreutils --
 
-if ($is_windows -and (Get-Command ls.exe -ErrorAction SilentlyContinue)) {
-    
-    function win_ps_setup_unix_alias() {
-        # Use C:\WINDOWS\system32\curl.exe
-        Set-Alias -Name curl -Value curl.exe -Scope Global -Option AllScope -Force
-        # winget install Microsoft.Coreutils
-        foreach ($cmd in @('ls', 'cp', 'echo', 'pwd', 'mv', 'cat', 'rm', 'sort')) {
-            Set-Alias -Name $cmd -Value "$cmd.exe" -Scope Global -Option AllScope -Force
-        }
+function win_ps_setup_unix_alias() {
+    # Use C:\WINDOWS\system32\curl.exe
+    Set-Alias -Name curl -Value curl.exe -Scope Global -Option AllScope -Force
+    # winget install Microsoft.Coreutils
+    foreach ($cmd in @('ls', 'cp', 'echo', 'pwd', 'mv', 'cat', 'rm', 'sort')) {
+        Set-Alias -Name $cmd -Value "$cmd.exe" -Scope Global -Option AllScope -Force
     }
-
-    function du_folder_list_sorted_by_size {
-        du.exe -ahd 1 | sort.exe -h
-    }
-
 }
+
+function du_folder_list_sorted_by_size {
+    du.exe -ahd 1 | sort.exe -h
+}
+
 
 # -- wsl --
 
