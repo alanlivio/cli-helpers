@@ -13,9 +13,6 @@ $is_ubuntu = $is_linux -and (Test-Path '/etc/lsb-release' -PathType Leaf)
 if ($is_windows) {
     Import-Module (Join-Path $helpers_dir 'os\win.psm1')
 }
-if ($is_windows -and (Get-Command ls.exe -ErrorAction SilentlyContinue)) {
-    Import-Module (Join-Path $helpers_dir 'os\win_coreutils.psm1')
-}
 if ($is_ubuntu -and (Test-Path (Join-Path $helpers_dir 'os\ubu.psm1'))) {
     Import-Module (Join-Path $helpers_dir 'os\ubu.psm1')
 }
