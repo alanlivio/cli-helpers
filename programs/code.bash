@@ -37,3 +37,28 @@ function code_install_extensions_from_txt() {
     fi
 }
 
+function code_wsl() {
+    local folder_path="${1:-.}"
+    if [[ "$folder_path" == "~"* ]]; then
+        folder_path="${folder_path/#\~/$HOME}"
+    fi
+    if type wslpath &>/dev/null && [[ "$folder_path" != \\\\* && "$folder_path" != //* && ! "$folder_path" =~ ^[a-zA-Z]: ]]; then
+        folder_path="$(wslpath -w "$folder_path" 2>/dev/null || echo "$folder_path")"
+    fi
+    if [[ "$folder_path" == //wsl* ]]; then
+        folder_path="\\\\${folder_path#//}"
+        folder_path="${folder_path//\//\\}"
+    fi
+    local re_root='^\\\\wsl(\.localhost|\$)\\[^\\]+$'
+    if [[ "$folder_path" =~ $re_root ]]; then
+        folder_path="${folder_path}\\"
+    fi
+    local re='^\\\\wsl(\.localhost|\$)\\([^\\]+)\\(.*)$'
+    if [[ "$folder_path" =~ $re ]]; then
+        local distro_name="${BASH_REMATCH[2]}"
+        local linux_path="/${BASH_REMATCH[3]//\\//}"
+        code --remote "wsl+$distro_name" "$linux_path"
+    else
+        code "$folder_path"
+    fi
+}
