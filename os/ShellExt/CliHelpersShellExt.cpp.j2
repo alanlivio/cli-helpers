@@ -1,0 +1,167 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <shobjidl_core.h>
+#include <shlwapi.h>
+#include <strsafe.h>
+#include <new>
+
+#pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "shell32.lib")
+
+// CLSID: {{ clsid_str }}
+static const GUID CLSID_Command = {{ clsid_struct }};
+
+static HINSTANCE g_hInstance = NULL;
+static LONG g_refCount = 0;
+
+class CommandHandler : public IExplorerCommand {
+    LONG m_refCount;
+public:
+    CommandHandler() : m_refCount(1) {
+        InterlockedIncrement(&g_refCount);
+    }
+    virtual ~CommandHandler() {
+        InterlockedDecrement(&g_refCount);
+    }
+
+    IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) {
+        if (!ppv) return E_POINTER;
+        *ppv = NULL;
+        if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, __uuidof(IExplorerCommand))) {
+            *ppv = static_cast<IExplorerCommand*>(this);
+            AddRef();
+            return S_OK;
+        }
+        return E_NOINTERFACE;
+    }
+    IFACEMETHODIMP_(ULONG) AddRef() {
+        return InterlockedIncrement(&m_refCount);
+    }
+    IFACEMETHODIMP_(ULONG) Release() {
+        ULONG ref = InterlockedDecrement(&m_refCount);
+        if (ref == 0) delete this;
+        return ref;
+    }
+
+    IFACEMETHODIMP GetTitle(IShellItemArray* psiItemArray, LPWSTR* ppszName) {
+        return SHStrDupW(L"{{ title }}", ppszName);
+    }
+    IFACEMETHODIMP GetIcon(IShellItemArray* psiItemArray, LPWSTR* ppszIcon) {
+        return SHStrDupW(L"{{ icon }}", ppszIcon);
+    }
+    IFACEMETHODIMP GetToolTip(IShellItemArray* psiItemArray, LPWSTR* ppszToolTip) {
+        return E_NOTIMPL;
+    }
+    IFACEMETHODIMP GetCanonicalName(GUID* pguidCommandName) {
+        *pguidCommandName = CLSID_Command;
+        return S_OK;
+    }
+    IFACEMETHODIMP GetState(IShellItemArray* psiItemArray, BOOL fOkToBeSlow, EXPCMDSTATE* pCmdState) {
+        *pCmdState = ECS_ENABLED;
+        return S_OK;
+    }
+    IFACEMETHODIMP Invoke(IShellItemArray* psiItemArray, IBindCtx* pbc) {
+        WCHAR targetPath[MAX_PATH * 2] = { 0 };
+        if (psiItemArray) {
+            DWORD count = 0;
+            if (SUCCEEDED(psiItemArray->GetCount(&count)) && count > 0) {
+                IShellItem* psi = NULL;
+                if (SUCCEEDED(psiItemArray->GetItemAt(0, &psi))) {
+                    LPWSTR pszName = NULL;
+                    if (SUCCEEDED(psi->GetDisplayName(SIGDN_FILESYSPATH, &pszName))) {
+                        StringCchCopyW(targetPath, _countof(targetPath), pszName);
+                        CoTaskMemFree(pszName);
+                    }
+                    psi->Release();
+                }
+            }
+        }
+
+        WCHAR cmdLine[MAX_PATH * 4] = { 0 };
+        StringCchPrintfW(cmdLine, _countof(cmdLine),
+            L"powershell.exe -WindowStyle Hidden -Command \". '{{ helpers_init }}'; {{ ps_function }} '%s'\"",
+            targetPath);
+
+        STARTUPINFOW si = { sizeof(si) };
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+        PROCESS_INFORMATION pi = { 0 };
+
+        if (CreateProcessW(NULL, cmdLine, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+        }
+        return S_OK;
+    }
+    IFACEMETHODIMP GetFlags(EXPCMDFLAGS* pFlags) {
+        *pFlags = ECF_DEFAULT;
+        return S_OK;
+    }
+    IFACEMETHODIMP EnumSubCommands(IEnumExplorerCommand** ppEnum) {
+        *ppEnum = NULL;
+        return E_NOTIMPL;
+    }
+};
+
+class ClassFactory : public IClassFactory {
+    LONG m_refCount;
+public:
+    ClassFactory() : m_refCount(1) {}
+    IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) {
+        if (!ppv) return E_POINTER;
+        *ppv = NULL;
+        if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_IClassFactory)) {
+            *ppv = static_cast<IClassFactory*>(this);
+            AddRef();
+            return S_OK;
+        }
+        return E_NOINTERFACE;
+    }
+    IFACEMETHODIMP_(ULONG) AddRef() {
+        return InterlockedIncrement(&m_refCount);
+    }
+    IFACEMETHODIMP_(ULONG) Release() {
+        ULONG ref = InterlockedDecrement(&m_refCount);
+        if (ref == 0) delete this;
+        return ref;
+    }
+    IFACEMETHODIMP CreateInstance(IUnknown* pUnkOuter, REFIID riid, void** ppv) {
+        if (pUnkOuter) return CLASS_E_NOAGGREGATION;
+        CommandHandler* cmd = new (std::nothrow) CommandHandler();
+        if (!cmd) return E_OUTOFMEMORY;
+        HRESULT hr = cmd->QueryInterface(riid, ppv);
+        cmd->Release();
+        return hr;
+    }
+    IFACEMETHODIMP LockServer(BOOL fLock) {
+        if (fLock) InterlockedIncrement(&g_refCount);
+        else InterlockedDecrement(&g_refCount);
+        return S_OK;
+    }
+};
+
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
+    if (ul_reason_for_call == DLL_PROCESS_ATTACH) {
+        g_hInstance = hModule;
+        DisableThreadLibraryCalls(hModule);
+    }
+    return TRUE;
+}
+
+STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID* ppv) {
+    if (!ppv) return E_POINTER;
+    *ppv = NULL;
+    if (IsEqualCLSID(rclsid, CLSID_Command)) {
+        ClassFactory* cf = new (std::nothrow) ClassFactory();
+        if (!cf) return E_OUTOFMEMORY;
+        HRESULT hr = cf->QueryInterface(riid, ppv);
+        cf->Release();
+        return hr;
+    }
+    return CLASS_E_CLASSNOTAVAILABLE;
+}
+
+STDAPI DllCanUnloadNow() {
+    return (g_refCount == 0) ? S_OK : S_FALSE;
+}

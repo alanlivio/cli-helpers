@@ -692,6 +692,148 @@ function win_startmenu_add_lnk_to_allapps {
     }
 }
 
+function win_modern_context_menu_add {
+    param(
+        [Parameter(Mandatory = $true)][string]$name,
+        [Parameter(Mandatory = $true)][string]$title,
+        [Parameter(Mandatory = $true)][string]$ps_function,
+        [string]$icon = "powershell.exe,0",
+        [switch]$force
+    )
+    $safeIdent = ($name -replace '[^a-zA-Z0-9]', '')
+    $packageName = "CliHelpers.$safeIdent"
+    $existing = Get-AppxPackage $packageName -ErrorAction SilentlyContinue
+    if ($existing -and -not $force) {
+        return
+    }
+
+    $shellExtDir = Join-Path $PSScriptRoot "ShellExt"
+    $pkgDir = Join-Path $env:LOCALAPPDATA "CliHelpers\pkg\$name"
+    if (-not (Test-Path $pkgDir)) {
+        New-Item -ItemType Directory -Path $pkgDir -Force | Out-Null
+    }
+
+    $helpersInit = (Resolve-Path (Join-Path (Split-Path -Parent $PSScriptRoot) "init.ps1")).ProviderPath
+    $helpersInitEscaped = $helpersInit -replace '\\', '\\\\'
+
+    $md5Bytes = [System.Security.Cryptography.MD5]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes("clihelpers.$name"))
+    $guid = [Guid]::new($md5Bytes)
+    $clsid_str = $guid.ToString()
+    $b = $guid.ToByteArray()
+    $d1 = [BitConverter]::ToUInt32($b, 0)
+    $d2 = [BitConverter]::ToUInt16($b, 4)
+    $d3 = [BitConverter]::ToUInt16($b, 6)
+    $d4 = ($b[8..15] | ForEach-Object { '0x{0:x2}' -f $_ }) -join ', '
+    $clsid_struct = ('{{ 0x{0:x8}, 0x{1:x4}, 0x{2:x4}, {{ {3} }} }}' -f $d1, $d2, $d3, $d4)
+
+    $safeIdent = ($name -replace '[^a-zA-Z0-9]', '')
+    $map = @{
+        '{{ clsid_str }}'     = $clsid_str
+        '{{ clsid_struct }}'  = $clsid_struct
+        '{{ title }}'         = $title
+        '{{ icon }}'          = $icon
+        '{{ ps_function }}'   = $ps_function
+        '{{ package_name }}'  = "CliHelpers.$safeIdent"
+        '{{ verb_id }}'       = "${safeIdent}Command"
+        '{{ dll_name }}'      = "ShellExt.dll"
+        '{{ helpers_init }}'  = $helpersInitEscaped
+    }
+
+    $cppTmpl = Get-Content (Join-Path $shellExtDir "CliHelpersShellExt.cpp.j2") -Raw
+    $manifestTmpl = Get-Content (Join-Path $shellExtDir "AppxManifest.xml.j2") -Raw
+    foreach ($k in $map.Keys) {
+        $cppTmpl = $cppTmpl.Replace($k, $map[$k])
+        $manifestTmpl = $manifestTmpl.Replace($k, $map[$k])
+    }
+
+    Set-Content -Path (Join-Path $pkgDir "ShellExt.cpp") -Value $cppTmpl -Encoding UTF8
+    Set-Content -Path (Join-Path $pkgDir "AppxManifest.xml") -Value $manifestTmpl -Encoding UTF8
+    Copy-Item (Join-Path $shellExtDir "CliHelpersShellExt.def") (Join-Path $pkgDir "ShellExt.def") -Force
+    
+    Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
+    $pkgLogo = Join-Path $pkgDir "logo.png"
+    $exeCandidate = ($icon -split ',')[0]
+    $fullExe = if (Test-Path $exeCandidate) { (Resolve-Path $exeCandidate).ProviderPath } else { (Get-Command $exeCandidate -ErrorAction SilentlyContinue).Source }
+    if ($fullExe -and (Test-Path $fullExe)) {
+        try {
+            $extractedIcon = [System.Drawing.Icon]::ExtractAssociatedIcon($fullExe)
+            $bmp = $extractedIcon.ToBitmap()
+            $bmp.Save($pkgLogo, [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+            $extractedIcon.Dispose()
+        } catch {}
+    }
+    if (-not (Test-Path $pkgLogo)) {
+        $bmp = New-Object System.Drawing.Bitmap(44, 44)
+        $bmp.Save($pkgLogo, [System.Drawing.Imaging.ImageFormat]::Png)
+        $bmp.Dispose()
+    }
+
+    if (Test-Path (Join-Path $shellExtDir "launcher.exe")) {
+        Copy-Item (Join-Path $shellExtDir "launcher.exe") (Join-Path $pkgDir "launcher.exe") -Force
+    }
+
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    $vcvars = $null
+    if (Test-Path $vswhere) {
+        $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if ($vsPath) {
+            $vcvars = Join-Path $vsPath "VC\Auxiliary\Build\vcvars64.bat"
+        }
+    }
+    if (-not $vcvars -or -not (Test-Path $vcvars)) {
+        log_error "MSVC compiler not found"
+        return
+    }
+
+    $cppPath = Join-Path $pkgDir "ShellExt.cpp"
+    $dllPath = Join-Path $pkgDir "ShellExt.dll"
+    $defPath = Join-Path $pkgDir "ShellExt.def"
+    $launcherC = Join-Path $shellExtDir "launcher.c"
+    $launcherExe = Join-Path $pkgDir "launcher.exe"
+
+    if ((Test-Path $launcherC) -and -not (Test-Path $launcherExe)) {
+        cmd /c "`"$vcvars`" && cd /d `"$pkgDir`" && cl /nologo /O2 `"$launcherC`" /Fe:`"$launcherExe`" /Fo:`"$pkgDir\`" /link /SUBSYSTEM:WINDOWS" | Out-Null
+    }
+
+    cmd /c "`"$vcvars`" && cd /d `"$pkgDir`" && cl /nologo /O2 /MT /LD `"$cppPath`" /Fe:`"$dllPath`" /Fo:`"$pkgDir\`" /link /DEF:`"$defPath`" /MACHINE:X64" | Out-Null
+    if (-not (Test-Path $dllPath)) {
+        log_error "Compilation failed for $dllPath"
+        return
+    }
+
+    Remove-Item (Join-Path $pkgDir "*.obj"), (Join-Path $pkgDir "*.lib"), (Join-Path $pkgDir "*.exp") -Force -ErrorAction SilentlyContinue
+
+    $existing = Get-AppxPackage $packageName -ErrorAction SilentlyContinue
+    if ($existing) {
+        Remove-AppxPackage -Package $existing.PackageFullName
+    }
+
+    $manifestPath = Join-Path $pkgDir "AppxManifest.xml"
+    Add-AppxPackage -Path (Resolve-Path $manifestPath).ProviderPath -Register
+    explorer_restart
+}
+
+function win_modern_context_menu_remove {
+    param(
+        [Parameter(Mandatory = $true)][string]$name
+    )
+    $safeIdent = ($name -replace '[^a-zA-Z0-9]', '')
+    $packageName = "CliHelpers.$safeIdent"
+    $pkg = Get-AppxPackage $packageName -ErrorAction SilentlyContinue
+    if ($pkg) {
+        Remove-AppxPackage -Package $pkg.PackageFullName
+        explorer_restart
+    }
+    $pkgDir = Join-Path $env:LOCALAPPDATA "CliHelpers\pkg\$name"
+    if (Test-Path $pkgDir) {
+        Remove-Item $pkgDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+Set-Alias win_context_menu_add win_modern_context_menu_add
+Set-Alias win_context_menu_remove win_modern_context_menu_remove
+
 # -- win_clutter --
 
 function win_declutter_all() {

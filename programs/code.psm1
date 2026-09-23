@@ -57,4 +57,12 @@ function code_wsl {
     }
 }
 
+function code_win_modern_context_menu_add {
+    win_modern_context_menu_add -name "code_wsl" -title "Open with Code (WSL)" -ps_function "code_wsl"
+}
+
+function code_win_modern_context_menu_remove {
+    win_modern_context_menu_remove -name "code_wsl"
+}
+
 Export-ModuleMember -Function *

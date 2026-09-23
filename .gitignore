@@ -2,3 +2,8 @@
 .ionide
 __pycache__/
 *.pyc
+*.dll
+*.obj
+*.lib
+*.exp
+launcher.exe
