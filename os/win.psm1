@@ -86,6 +86,28 @@ function wsl_terminate() {
     wsl -t (wsl_get_default)
 }
 
+function wsl_start_if_wsl_folder {
+    if ($env:WSL_DISTRO_NAME) { return }
+    if ([Console]::IsInputRedirected -or ([Environment]::CommandLine -match '-(?:c|command|file|encodedcommand)\b' -and [Environment]::CommandLine -notmatch '-noexit\b')) {
+        return
+    }
+    $folder_path = (Get-Location).ProviderPath
+    if ($folder_path -and ($folder_path.StartsWith('~'))) {
+        $folder_path = $folder_path -replace '^~', $HOME
+    }
+    if (Test-Path -LiteralPath $folder_path) {
+        $resolved = (Resolve-Path -LiteralPath $folder_path).ProviderPath
+        if (Test-Path -LiteralPath $resolved -PathType Leaf) {
+            $folder_path = Split-Path -Parent $resolved
+        } else {
+            $folder_path = $resolved
+        }
+    }
+    if ($folder_path -match '^\\+wsl') {
+        wsl.exe --cd "$folder_path"
+    }
+}
+
 
 # -- links --
 
