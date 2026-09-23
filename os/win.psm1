@@ -754,26 +754,27 @@ function win_declutter_home_folders() {
 
 function win_declutter_osapps() {
     log_msg "win_declutter_osapps"
-    winget_uninstall "Mail and Calendar"
-    winget_uninstall "Microsoft Bing"
-    winget_uninstall "MSN Weather"
-    winget_uninstall "Microsoft Sticky Notes"
-    winget_uninstall "Microsoft Clipchamp"
-    winget_uninstall "Microsoft Journal"
-    winget_uninstall "Solitaire & Casual Games"
-    winget_uninstall "Game Bar"
-    winget_uninstall "News"
-    winget_uninstall "Windows Maps"
-    winget_uninstall "Microsoft People"
-    winget_uninstall "Films & TV"
-    winget_uninstall "Power Automate"
+    winget_uninstall 9WZDNCRFJ3Q2 # Weather
+    winget_uninstall 9WZDNCRFJ3PZ # Company Portal
     winget_uninstall 9P6PMZTM93LR # Defender
-    winget_uninstall 9WZDNCRD29V9 # Microsoft 365 Copilot
     winget_uninstall 9PDJDJS743XF # Family
-    winget_uninstall "Phone Link"
-    winget_uninstall "Windows Web Experience Pack"
-    winget_uninstall "Windows Sound Recorder"
-    winget_uninstall "Cross Device Experience Host"
+    winget_uninstall 9WZDNCRD29V9 # Microsoft 365 Copilot
+    winget_uninstall 9WZDNCRFHVQM # Mail and Calendar
+    winget_uninstall 9NZBF4GT040C # Microsoft Bing
+    winget_uninstall 9NBLGGH4QGHW # Sticky Notes
+    winget_uninstall 9P1J8S7CCWWT # Clipchamp
+    winget_uninstall 9N318R854RHH # Journal
+    winget_uninstall Microsoft.MicrosoftSolitaireCollection
+    winget_uninstall 9NZKPSTSNW4P # Game Bar
+    winget_uninstall 9WZDNCRFHVFW # News
+    winget_uninstall Microsoft.WindowsMaps
+    winget_uninstall Microsoft.People
+    winget_uninstall 9WZDNCRFJ3P2 # Films & TV
+    winget_uninstall 9NFTCH6J7FHV # Power Automate
+    winget_uninstall 9NMPJ99VJBWV # Phone Link
+    winget_uninstall 9MSSGKG348SP # Windows Web Experience Pack
+    winget_uninstall 9WZDNCRFHWKN # Sound Recorder
+    winget_uninstall 9NTXGKQ8P7N0 # Cross Device Experience Host
 }
 
 function win_declutter_3_and_4_fingers_gestures() {
