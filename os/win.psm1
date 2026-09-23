@@ -64,16 +64,6 @@ function du_folder_list_sorted_by_size {
 
 # -- wsl --
 
-function wsl_code {
-    if ($pwd.ProviderPath -match '^\\+wsl') {
-        $path = $pwd.ProviderPath -replace '^\\+wsl(?:\.localhost)?\\[^\\]+', '' -replace '\\', '/'
-        code --folder-uri "vscode-remote://wsl+Ubuntu$path" ($args -ne '.')
-    } else {
-        code $(if ($args) { $args } else { '.' })
-    }
-}
-
-
 function wsl_get_default() {
     [System.Text.Encoding]::Unicode.GetString([System.Text.Encoding]::UTF8.GetBytes((wsl -l))) -split '\s\s+' | ForEach-Object {
         if ($_.Contains('(')) {
