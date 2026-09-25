@@ -306,6 +306,15 @@ function zip_download_extract() {
     } catch { log_error "extract failed"; return }
 }
 
+function github_latest_release_url($repo, $pattern = "*") {
+    $api_url = "https://api.github.com/repos/$repo/releases/latest"
+    $response = Invoke-RestMethod -Uri $api_url -Method Get -Headers @{ "Accept" = "application/vnd.github.v3+json" }
+    if (-not $response) { log_error "Download failed"; return }
+    $asset = $response.assets | Where-Object { $_.name -like $pattern -or $_.name -match $pattern } | Select-Object -First 1
+    if (-not $asset) { log_error "Asset not found"; return }
+    return $asset.browser_download_url
+}
+
 function win_install_vlc() {
     $vlc_latest_win64_url = "https://get.videolan.org/vlc/last/win64/"
     $web_request = Invoke-WebRequest -Uri $vlc_latest_win64_url -Method Get -UseBasicParsing -ErrorAction Stop
@@ -359,11 +368,9 @@ function win_install_flutter() {
 }
 
 function win_install_obs() {
-    $api_url = "https://api.github.com/repos/obsproject/obs-studio/releases/latest"
-    $response = Invoke-RestMethod -Uri $api_url -Method Get -Headers @{"Accept" = "application/vnd.github.v3+json" }
-    if (-not ($response)) { log_error "Download failed"; return }
-    $version = $response.tag_name
-    if ($version -match "(\d+\.\d+\.\d+(\.\d+)?)") {
+    $url = github_latest_release_url "obsproject/obs-studio" "*Windows-x64.zip"
+    if (-not $url) { return }
+    if ($url -match "OBS-Studio-(\d+\.\d+\.\d+(\.\d+)?)-Windows-x64") {
         $latest_version = $Matches[1]
         $obs_exe = "$env:LOCALAPPDATA\Programs\OBS\bin\64bit\obs64.exe"
         if (Test-Path $obs_exe) {
@@ -378,18 +385,14 @@ function win_install_obs() {
             }
         }
     }
-    $url = "https://github.com/obsproject/obs-studio/releases/download/$version/OBS-Studio-$version-Windows-x64.zip"
     zip_download_extract $url "$env:LOCALAPPDATA\Programs\OBS"
     win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\OBS\bin\64bit\obs64.exe" OBS
 }
 
 function win_install_gh() {
     if (Test-Path "$env:LOCALAPPDATA\Programs\gh\bin\gh.exe") { return; }
-    $api_url = "https://api.github.com/repos/cli/cli/releases/latest"
-    $response = Invoke-RestMethod -Uri $api_url -Method Get -Headers @{"Accept" = "application/vnd.github.v3+json" }
-    if (-not ($response)) { log_error "Download failed"; return }
-    $version = $response.tag_name.Substring(1)
-    $url = "https://github.com/cli/cli/releases/download/v$version/gh_${version}_windows_amd64.zip" 
+    $url = github_latest_release_url "cli/cli" "*windows_amd64.zip"
+    if (-not $url) { return }
     zip_download_extract $url "$env:LOCALAPPDATA\Programs\gh"
     win_path_add "$env:LOCALAPPDATA\Programs\gh\bin"
 }
@@ -409,13 +412,8 @@ function win_install_node() {
 function win_install_latex() {
     # install perl required by latexmk 
     if (Test-Path "$env:LOCALAPPDATA\Programs\StrawberryPerl") { return; } 
-    $api_url = "https://api.github.com/repos/StrawberryPerl/Perl-Dist-Strawberry/releases/latest"
-    $response = Invoke-RestMethod -Uri $api_url -Method Get -Headers @{"Accept" = "application/vnd.github.v3+json" }
-    if (-not ($response)) { log_error "Download failed"; return }
-    $asset = $response.assets | Where-Object {
-        $_.name -match '^strawberry-perl-[\d\.]+-64bit-portable\.zip$'
-    } | Select-Object -First 1
-    $url = $asset.browser_download_url
+    $url = github_latest_release_url "StrawberryPerl/Perl-Dist-Strawberry" "^strawberry-perl-[\d\.]+-64bit-portable\.zip$"
+    if (-not $url) { return }
     log_msg "download and extracting StrawberryPerl (~15min)"
     zip_download_extract $url "$env:LOCALAPPDATA\Programs\StrawberryPerl"
     log_msg "download and extracting finished"
@@ -728,15 +726,15 @@ function win_modern_context_menu_add {
 
     $safeIdent = ($name -replace '[^a-zA-Z0-9]', '')
     $map = @{
-        '{{ clsid_str }}'     = $clsid_str
-        '{{ clsid_struct }}'  = $clsid_struct
-        '{{ title }}'         = $title
-        '{{ icon }}'          = $icon
-        '{{ ps_function }}'   = $ps_function
-        '{{ package_name }}'  = "CliHelpers.$safeIdent"
-        '{{ verb_id }}'       = "${safeIdent}Command"
-        '{{ dll_name }}'      = "ShellExt.dll"
-        '{{ helpers_init }}'  = $helpersInitEscaped
+        '{{ clsid_str }}'    = $clsid_str
+        '{{ clsid_struct }}' = $clsid_struct
+        '{{ title }}'        = $title
+        '{{ icon }}'         = $icon
+        '{{ ps_function }}'  = $ps_function
+        '{{ package_name }}' = "CliHelpers.$safeIdent"
+        '{{ verb_id }}'      = "${safeIdent}Command"
+        '{{ dll_name }}'     = "ShellExt.dll"
+        '{{ helpers_init }}' = $helpersInitEscaped
     }
 
     $cppTmpl = Get-Content (Join-Path $shellExtDir "CliHelpersShellExt.cpp.j2") -Raw
