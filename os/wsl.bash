@@ -28,16 +28,34 @@ function wsl_fix_libcuda_so_slink() {
 
 function wsl_set_cmd_start_as_xdg_open() {
     local target_path="/usr/local/bin/xdg-open"
-    if [ -f "$target_path" ]; then return; fi
     printf '%s\n' \
         '#!/usr/bin/env bash' \
         'target="$1"' \
         '[ -z "$target" ] && exit 0' \
-        'if [ -e "$target" ]; then' \
-        '    target="$(wslpath -w "$target")"' \
+        'if [[ "$target" =~ ^[a-zA-Z][a-zA-Z0-9+.-]*:// ]]; then' \
+        '    if [ -x /mnt/c/Windows/System32/rundll32.exe ]; then' \
+        '        /mnt/c/Windows/System32/rundll32.exe url.dll,FileProtocolHandler "$target" >/dev/null 2>&1' \
+        '        exit 0' \
+        '    elif [ -x /mnt/c/Windows/explorer.exe ]; then' \
+        '        /mnt/c/Windows/explorer.exe "$target" >/dev/null 2>&1' \
+        '        exit 0' \
+        '    fi' \
         'fi' \
-        'cmd.exe /c start "" "$target" >/dev/null 2>&1' |
-        sudo tee "$target_path" >/dev/null
+        'if [ -e "$target" ]; then' \
+        '    win_path="$(wslpath -w "$target" 2>/dev/null || echo "$target")"' \
+        '    if [ -x /mnt/c/Windows/System32/rundll32.exe ]; then' \
+        '        /mnt/c/Windows/System32/rundll32.exe url.dll,FileProtocolHandler "$win_path" >/dev/null 2>&1' \
+        '        exit 0' \
+        '    elif [ -x /mnt/c/Windows/explorer.exe ]; then' \
+        '        /mnt/c/Windows/explorer.exe "$win_path" >/dev/null 2>&1' \
+        '        exit 0' \
+        '    fi' \
+        'fi' \
+        'if [ -x /mnt/c/Windows/System32/rundll32.exe ]; then' \
+        '    /mnt/c/Windows/System32/rundll32.exe url.dll,FileProtocolHandler "$target" >/dev/null 2>&1' \
+        '    exit 0' \
+        'fi' \
+        'exit 1' | sudo tee "$target_path" >/dev/null
     sudo chmod +x "$target_path"
 }
 
