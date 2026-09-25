@@ -72,7 +72,7 @@ function ubu_increase_swap() {
     echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 }
 
-function ubu_set_linger_background_user(){
+function ubu_set_linger_background_user() {
     local target_user="${1:-$USER}"
     if ! id "$target_user" >/dev/null 2>&1; then
         sudo useradd -m -s /bin/bash "$target_user"
@@ -103,6 +103,19 @@ function user_as_sudoer_no_password() {
 
 # -- install --
 
+function ubu_install_docker() {
+    # https://docs.docker.com/engine/install/ubuntu/
+    for pkg in docker.io docker-doc podman-docker containerd runc; do sudo apt remove $pkg; done
+    sudo apt update && sudo apt install -y ca-certificates curl gnupg
+    sudo install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
+    sudo chmod a+r /etc/apt/keyrings/docker.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" |
+        sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+    sudo apt update
+    sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+}
+
 function ubu_install_latex() {
     sudo apt install -y latexmk texlive-latex-extra texlive-fonts-extra texlive-extra-utils
 }
@@ -123,13 +136,4 @@ function ubu_install_miniconda() {
     wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/bin/miniconda3/miniconda.sh
     bash ~/bin/miniconda3/miniconda.sh -b -u -p ~/bin/miniconda3
     rm -rf ~/bin/miniconda3/miniconda.sh
-}
-
-function ubu_install_antigravity2() {
-    local asound="libasound2"
-    apt-cache show libasound2t64 &>/dev/null && asound="libasound2t64"
-    sudo apt update && sudo apt install -y libgtk-3-0 libnss3 libgbm1 libsecret-1-0 libnotify4 libxss1 libx11-xcb1 libxtst6 xdg-utils "$asound" chromium-browser
-    mkdir -p ~/.local/Antigravity-x64 ~/.local/bin
-    curl -fsSL https://storage.googleapis.com/antigravity-public/antigravity-hub/2.6.0-4603467860410368/linux-x64/Antigravity.tar.gz | tar -xz --strip-components=1 -C ~/.local/Antigravity-x64
-    ln -s -f ~/.local/Antigravity-x64/antigravity ~/.local/bin/antigravity
 }
