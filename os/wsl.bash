@@ -42,10 +42,6 @@ function wsl_set_cmd_start_as_xdg_open() {
 }
 
 function wsl_fix_path_and_metadata() {
-    if ! grep -qs 'appendWindowsPath=false' /etc/wsl.conf; then
-        echo "[interop]" >>/etc/wsl.conf
-        echo "appendWindowsPath=false" >>/etc/wsl.conf
-    fi
     if ! grep -qs 'metadata,umask=0022,fmask=11' /etc/wsl.conf; then
         echo "[automount]" >>/etc/wsl.conf
         echo "options=\"metadata,umask=0022,fmask=11\"" >>/etc/wsl.conf
