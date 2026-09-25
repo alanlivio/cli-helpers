@@ -341,6 +341,18 @@ function win_install_winget_latest() {
     }
 }
 
+function win_install_docker() {
+    if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping"; return }
+    $docker_cli = "$env:ProgramFiles\Docker\Docker\DockerCli.exe"
+    if (-not (Test-Path $docker_cli) -and -not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        $installer_url = "https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe"
+        $installer_path = Join-Path $env:TEMP "DockerDesktopInstaller.exe"
+        (New-Object System.Net.WebClient).DownloadFile($installer_url, $installer_path)
+        Start-Process -FilePath $installer_path -ArgumentList "install", "--quiet", "--accept-license", "--norestart" -Wait
+        Remove-Item -Force $installer_path -ErrorAction SilentlyContinue
+    }
+}
+
 function win_install_vlc() {
     $vlc_latest_win64_url = "https://get.videolan.org/vlc/last/win64/"
     $web_request = Invoke-WebRequest -Uri $vlc_latest_win64_url -Method Get -UseBasicParsing -ErrorAction Stop
