@@ -14,7 +14,7 @@ flowchart LR
         ...
     "]
     OS-dependent["
-        os/win.bash
+        os/wsl.bash
         os/ubu.bash
         ...
     "]

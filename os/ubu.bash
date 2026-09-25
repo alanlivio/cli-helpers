@@ -103,18 +103,6 @@ function user_as_sudoer_no_password() {
 
 # -- install --
 
-function ubu_install_docker() {
-    # https://docs.docker.com/engine/install/ubuntu/
-    for pkg in docker.io docker-doc podman-docker containerd runc; do sudo apt remove $pkg; done
-    sudo apt update && sudo apt install -y ca-certificates curl gnupg
-    sudo install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
-    sudo chmod a+r /etc/apt/keyrings/docker.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" |
-        sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
-    sudo apt update
-    sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-}
 
 function ubu_install_latex() {
     sudo apt install -y latexmk texlive-latex-extra texlive-fonts-extra texlive-extra-utils
