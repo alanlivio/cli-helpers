@@ -11,6 +11,20 @@ function wsl_install_docker_gpu() {
     sudo systemctl enable --now docker 2>/dev/null || sudo service docker restart
 }
 
+function wsl_setup_docker_for_win_vscode_containers() {
+    sudo mkdir -p /etc/systemd/system/docker.service.d
+    sudo tee /etc/systemd/system/docker.service.d/override.conf >/dev/null <<'EOF'
+[Service]
+ExecStart=
+ExecStart=/usr/bin/dockerd --containerd=/run/containerd/containerd.sock -H fd:// -H tcp://127.0.0.1:2375
+EOF
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now docker 2>/dev/null || sudo service docker restart
+    log_msg "Add the following lines to your Code settings.json:"
+    log_msg '    "containers.containerCommand": "wsl -d '${WSL_DISTRO_NAME:-Ubuntu}' docker",'
+    log_msg '    "containers.environment": { "DOCKER_HOST": "tcp://127.0.0.1:2375" }'
+}
+
 function wsl_fix_libcuda_so_slink() {
     # https://github.com/microsoft/WSL/issues/5663
     (
