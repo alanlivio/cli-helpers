@@ -11,10 +11,6 @@ function wsl_install_docker_gpu() {
     sudo systemctl enable --now docker 2>/dev/null || sudo service docker restart
 }
 
-function wsl_install_cuda_cudnn() {
-    wsl_install_docker_gpu
-}
-
 function wsl_fix_libcuda_so_slink() {
     # https://github.com/microsoft/WSL/issues/5663
     (
