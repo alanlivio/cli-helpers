@@ -37,7 +37,7 @@ function code_install_extensions_from_txt() {
     fi
 }
 
-function code_wsl() {
+function code_wsl_auto() {
     local folder_path="${1:-.}"
     if [[ "$folder_path" == "~"* ]]; then
         folder_path="${folder_path/#\~/$HOME}"
@@ -62,3 +62,5 @@ function code_wsl() {
         code "$folder_path"
     fi
 }
+
+alias code_wsl='code_wsl_auto'

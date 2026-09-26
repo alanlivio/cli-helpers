@@ -38,7 +38,7 @@ function code_install_extensions_from_txt {
     }
 }
 
-function code_wsl {
+function code_wsl_auto {
     param(
         [string]$folder_path = (Get-Location).ProviderPath
     )
@@ -58,11 +58,11 @@ function code_wsl {
 }
 
 function code_win_modern_context_menu_add {
-    win_modern_context_menu_add -name "code_wsl" -title "Open with Code (WSL)" -ps_function "code_wsl"
+    win_modern_context_menu_add -name "code_wsl_auto" -title "Open with Code (Auto WSL)" -ps_function "code_wsl_auto"
 }
 
 function code_win_modern_context_menu_remove {
-    win_modern_context_menu_remove -name "code_wsl"
+    win_modern_context_menu_remove -name "code_wsl_auto"
 }
 
 Export-ModuleMember -Function *
