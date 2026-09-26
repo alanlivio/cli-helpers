@@ -33,7 +33,7 @@ function code_install_extensions {
 function code_install_extensions_from_txt {
     param([string]$path)
     if (Test-Path $path) {
-        $extensions = Get-Content $path | Where-Object { $_ -and -not $_.Trim().StartsWith('#') } | ForEach-Object { $_.Trim() }
+        $extensions = Get-Content $path | ForEach-Object { ($_ -split '#')[0].Trim() } | Where-Object { $_ }
         code_install_extensions $extensions
     }
 }
