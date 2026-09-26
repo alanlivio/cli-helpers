@@ -829,12 +829,18 @@ function win_modern_context_menu_add {
     $launcherExe = Join-Path $pkgDir "launcher.exe"
 
     if ((Test-Path $launcherC) -and -not (Test-Path $launcherExe)) {
-        cmd /c "`"$vcvars`" && cd /d `"$pkgDir`" && cl /nologo /O2 `"$launcherC`" /Fe:`"$launcherExe`" /Fo:`"$pkgDir\`" /link /SUBSYSTEM:WINDOWS" | Out-Null
+        $launcherOutput = cmd /c "`"$vcvars`" && cd /d `"$pkgDir`" && cl /nologo /O2 `"$launcherC`" /Fe:`"$launcherExe`" /Fo:`"$pkgDir\\`" /link /SUBSYSTEM:WINDOWS" 2>&1
+        if (-not (Test-Path $launcherExe)) {
+            log_error "Compilation failed for $launcherExe"
+            $launcherOutput | ForEach-Object { log_error $_ }
+            return
+        }
     }
 
-    cmd /c "`"$vcvars`" && cd /d `"$pkgDir`" && cl /nologo /O2 /MT /LD `"$cppPath`" /Fe:`"$dllPath`" /Fo:`"$pkgDir\`" /link /DEF:`"$defPath`" /MACHINE:X64" | Out-Null
+    $compileOutput = cmd /c "`"$vcvars`" && cd /d `"$pkgDir`" && cl /nologo /O2 /MT /LD `"$cppPath`" /Fe:`"$dllPath`" /Fo:`"$pkgDir\\`" /link /DEF:`"$defPath`" /MACHINE:X64" 2>&1
     if (-not (Test-Path $dllPath)) {
         log_error "Compilation failed for $dllPath"
+        $compileOutput | ForEach-Object { log_error $_ }
         return
     }
 
@@ -842,11 +848,19 @@ function win_modern_context_menu_add {
 
     $existing = Get-AppxPackage $packageName -ErrorAction SilentlyContinue
     if ($existing) {
+        $prev = $ProgressPreference
+        $ProgressPreference = 'SilentlyContinue'
+        explorer_restart
+        Start-Sleep -Milliseconds 500
         Remove-AppxPackage -Package $existing.PackageFullName
+        $ProgressPreference = $prev
     }
 
     $manifestPath = Join-Path $pkgDir "AppxManifest.xml"
+    $prev = $ProgressPreference
+    $ProgressPreference = 'SilentlyContinue'
     Add-AppxPackage -Path (Resolve-Path $manifestPath).ProviderPath -Register
+    $ProgressPreference = $prev
     explorer_restart
 }
 
@@ -858,7 +872,12 @@ function win_modern_context_menu_remove {
     $packageName = "CliHelpers.$safeIdent"
     $pkg = Get-AppxPackage $packageName -ErrorAction SilentlyContinue
     if ($pkg) {
+        $prev = $ProgressPreference
+        $ProgressPreference = 'SilentlyContinue'
+        explorer_restart
+        Start-Sleep -Milliseconds 500
         Remove-AppxPackage -Package $pkg.PackageFullName
+        $ProgressPreference = $prev
         explorer_restart
     }
     $pkgDir = Join-Path $env:LOCALAPPDATA "CliHelpers\pkg\$name"
