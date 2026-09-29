@@ -38,6 +38,9 @@ function wsl_fix_libcuda_so_slink() {
 
 function wsl_set_cmd_start_as_xdg_open() {
     local target_path="/usr/local/bin/xdg-open"
+    if [[ -x "$target_path" ]]; then
+        return 0
+    fi
     printf '%s\n' \
         '#!/usr/bin/env bash' \
         'target="$1"' \

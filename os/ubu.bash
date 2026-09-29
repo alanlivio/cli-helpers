@@ -101,8 +101,60 @@ function user_as_sudoer_no_password() {
     sudo grep -q "^$USER\\b" /etc/sudoers || echo "$USER ALL=(ALL) NOPASSWD:ALL" | sudo tee -a /etc/sudoers
 }
 
-# -- install --
+# -- code --
 
+function code_install_extensions() {
+    local executable="${CODE_EXECUTABLE:-code}"
+    local installed
+    installed="$("$executable" --list-extensions 2>/dev/null)"
+    for ext in "$@"; do
+        if ! echo "$installed" | grep -qiFx "$ext"; then
+            "$executable" --install-extension "$ext"
+        fi
+    done
+}
+
+function code_install_extensions_from_txt() {
+    local path="$1"
+    if [[ -f "$path" ]]; then
+        local extensions=()
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            line="${line%%#*}"
+            line="$(echo "$line" | xargs)"
+            [[ -n "$line" ]] && extensions+=("$line")
+        done <"$path"
+        code_install_extensions "${extensions[@]}"
+    fi
+}
+
+function code_wsl_auto() {
+    local folder_path="${1:-.}"
+    local executable="${CODE_EXECUTABLE:-code}"
+    if [[ "$folder_path" == "~"* ]]; then
+        folder_path="${folder_path/#\~/$HOME}"
+    fi
+    if type wslpath &>/dev/null && [[ "$folder_path" != \\\\* && "$folder_path" != //* && ! "$folder_path" =~ ^[a-zA-Z]: ]]; then
+        folder_path="$(wslpath -w "$folder_path" 2>/dev/null || echo "$folder_path")"
+    fi
+    if [[ "$folder_path" == //wsl* ]]; then
+        folder_path="\\\\${folder_path#//}"
+        folder_path="${folder_path//\//\\}"
+    fi
+    local re_root='^\\\\wsl(\.localhost|\$)\\[^\\]+$'
+    if [[ "$folder_path" =~ $re_root ]]; then
+        folder_path="${folder_path}\\"
+    fi
+    local re='^\\\\wsl(\.localhost|\$)\\([^\\]+)\\(.*)$'
+    if [[ "$folder_path" =~ $re ]]; then
+        local distro_name="${BASH_REMATCH[2]}"
+        local linux_path="/${BASH_REMATCH[3]//\\//}"
+        "$executable" --remote "wsl+$distro_name" "$linux_path"
+    else
+        "$executable" "$folder_path"
+    fi
+}
+
+# -- install --
 
 function ubu_install_latex() {
     sudo apt install -y latexmk texlive-latex-extra texlive-fonts-extra texlive-extra-utils

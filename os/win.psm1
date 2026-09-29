@@ -274,6 +274,51 @@ function win_admin_enable_ssh() {
 }
 
 
+# -- code -- 
+
+function code_install_extensions {
+    param(
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [string[]]$extensions
+    )
+    $executable = if ($env:CODE_EXECUTABLE) { $env:CODE_EXECUTABLE } else { "code" }
+    $installed = @(& $executable --list-extensions)
+    foreach ($ext in $extensions) {
+        if ($installed -notcontains $ext) {
+            & $executable --install-extension $ext
+        }
+    }
+}
+
+function code_install_extensions_from_txt {
+    param([string]$path)
+    if (Test-Path $path) {
+        $extensions = Get-Content $path | ForEach-Object { ($_ -split '#')[0].Trim() } | Where-Object { $_ }
+        code_install_extensions $extensions
+    }
+}
+
+function code_wsl_auto {
+    param(
+        [string]$folder_path = (Get-Location).ProviderPath
+    )
+    $executable = if ($env:CODE_EXECUTABLE) { $env:CODE_EXECUTABLE } else { "code" }
+    if (Test-Path -LiteralPath $folder_path) {
+        $folder_path = (Resolve-Path -LiteralPath $folder_path).ProviderPath
+    }
+    if ($folder_path -match '^\\\\wsl(?:\.localhost|\$)\\[^\\]+$') {
+        $folder_path += '\'
+    }
+    if ($folder_path -match '^\\\\wsl(?:\.localhost|\$)\\([^\\]+)\\(.*)$') {
+        $distro_name = $matches[1]
+        $linux_path = '/' + ($matches[2] -replace '\\', '/')
+        & $executable --remote "wsl+$distro_name" $linux_path
+    } else {
+        & $executable $folder_path
+    }
+}
+
+
 # -- install -- 
 
 function zip_download_extract() {
@@ -505,6 +550,26 @@ function win_path_add($addPath) {
     $newpath = ($arrPath + $addPath) -join ';'
     [Environment]::SetEnvironmentVariable("path", $newpath, 'User')
     $env:path = [Environment]::GetEnvironmentVariable("path", "User") + ";" + [Environment]::GetEnvironmentVariable("path", "Machine")
+}
+
+function win_path_put_priority_folder($folder) {
+    if (-not(Test-Path $folder)) { log_error "'$folder' is not a valid path."; return }
+    $resolved = (Resolve-Path $folder -ErrorAction SilentlyContinue).ProviderPath
+    if (-not $resolved) { $resolved = $folder }
+
+    $path = [Environment]::GetEnvironmentVariable('path', 'User')
+    $currentFirst = ($path -split ';' | Where-Object { $_ } | Select-Object -First 1)
+    if (-not ($currentFirst -and $currentFirst.TrimEnd('\') -ieq $resolved.TrimEnd('\'))) {
+        $arrPath = @($path -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ine $resolved.TrimEnd('\') })
+        $newpath = (@($resolved) + $arrPath) -join ';'
+        [Environment]::SetEnvironmentVariable("path", $newpath, 'User')
+    }
+
+    $firstEnv = ($env:Path -split ';' | Where-Object { $_ } | Select-Object -First 1)
+    if (-not ($firstEnv -and $firstEnv.TrimEnd('\') -ieq $resolved.TrimEnd('\'))) {
+        $envArr = @($env:Path -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ine $resolved.TrimEnd('\') })
+        $env:Path = (@($resolved) + $envArr) -join ';'
+    }
 }
 
 function win_path_list() {
