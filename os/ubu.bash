@@ -125,3 +125,58 @@ function ubu_install_miniconda() {
     bash ~/bin/miniconda3/miniconda.sh -b -u -p ~/bin/miniconda3
     rm -rf ~/bin/miniconda3/miniconda.sh
 }
+
+function ubu_install_agy_desktop() {
+    rm -rf ~/.gemini/antigravity
+    ln -s ~/.gemini/antigravity-cli ~/.gemini/antigravity
+
+    if declare -F wsl_set_cmd_start_as_xdg_open >/dev/null; then
+        wsl_set_cmd_start_as_xdg_open
+    fi
+
+    local winhome="${WINHOME:-/mnt/c/Users/$(whoami)}"
+    if [[ -d "$winhome/.gemini" ]]; then
+        for f in google_accounts.json oauth_creds.json installation_id; do
+            if [[ -f "$winhome/.gemini/$f" ]]; then
+                ln -sf "$winhome/.gemini/$f" "$HOME/.gemini/$f"
+            fi
+        done
+    fi
+
+    if [[ -L ~/.local/Antigravity-x64/antigravity ]]; then
+        rm -f ~/.local/Antigravity-x64/antigravity
+    fi
+    if [[ -f ~/.local/Antigravity-x64/antigravity-bin ]]; then
+        mv ~/.local/Antigravity-x64/antigravity-bin ~/.local/Antigravity-x64/antigravity
+    fi
+
+    if [[ ! -x ~/.local/Antigravity-x64/antigravity ]]; then
+        local dl_url
+        dl_url=$(curl -sL "https://antigravity.google/download?os=linux" | grep -o 'https://storage.googleapis.com/antigravity-public/antigravity-hub/[^"'\'' ]*/linux-x64/Antigravity\.tar\.gz' | head -n 1)
+        if [[ -z "$dl_url" ]]; then
+            dl_url="https://storage.googleapis.com/antigravity-public/antigravity-hub/2.17.0-5217732355031040/linux-x64/Antigravity.tar.gz"
+        fi
+        local tmp_tar="/tmp/Antigravity.tar.gz"
+        curl -fSL "$dl_url" -o "$tmp_tar"
+        mkdir -p ~/.local
+        tar -xzf "$tmp_tar" -C ~/.local/
+        rm -f "$tmp_tar"
+    fi
+
+    mkdir -p ~/.local/bin
+    ln -sf ~/.local/Antigravity-x64/antigravity ~/.local/bin/antigravity
+
+    mkdir -p ~/.local/share/applications
+    cat <<EOF >~/.local/share/applications/antigravity.desktop
+[Desktop Entry]
+Name=Antigravity Desktop (WSL)
+Comment=Antigravity Desktop Application
+Exec=$HOME/.local/bin/antigravity %U
+Terminal=false
+Type=Application
+Categories=Development;IDE;
+StartupWMClass=antigravity
+EOF
+    chmod +x ~/.local/share/applications/antigravity.desktop
+    sudo cp ~/.local/share/applications/antigravity.desktop /usr/share/applications/antigravity.desktop 2>/dev/null || true
+}
