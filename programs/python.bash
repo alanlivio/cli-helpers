@@ -9,7 +9,7 @@ function pip_install() {
                     line="${line%%#*}"
                     line="$(echo "$line" | xargs)"
                     [[ -n "$line" ]] && pkgs+=("$line")
-                done < "$2"
+                done <"$2"
             fi
             shift 2
         else
@@ -29,13 +29,13 @@ function python_fix_error_externally_managed_environment() {
     python -m pip config set global.break-system-packages true
 }
 
-function python_venv() {
+function venv_activate_or_init() {
     [[ ! -d .venv ]] && python -m venv .venv
     source .venv/bin/activate
     pip_install -r requirements.txt
 }
 
-function python_venv_deactivate() {
+function venv_deactivate() {
     deactivate
 }
 
@@ -54,7 +54,6 @@ except KeyboardInterrupt:
     pass"
 }
 
-    
 function python_check_torch() {
     python -c "import torch; print(torch.cuda.get_device_name(0))"
 }

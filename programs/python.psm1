@@ -32,7 +32,7 @@ function pip_install() {
     }
 }
 
-function python_venv() {
+function venv_activate_or_init() {
     if (-not (Test-Path .venv)) {
         python -m venv .venv
     }
@@ -46,7 +46,7 @@ function python_venv() {
     }
 }
 
-function python_venv_deactivate() {
+function venv_deactivate() {
     if (Get-Command deactivate -ErrorAction SilentlyContinue) {
         deactivate
     }
