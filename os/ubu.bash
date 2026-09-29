@@ -86,6 +86,30 @@ alias ubu_product_name='sudo dmidecode -s system-product-name'
 alias ubu_gpu_list="lspci -nn | grep -E 'VGA|Display'"
 alias ubu_initd_services_list='service --status-all'
 
+function ubu_cron_list() {
+    local found=0
+    local user_cron
+    user_cron="$(crontab -l 2>/dev/null || true)"
+    if [[ -n "${user_cron//[[:space:]]/}" ]]; then
+        echo "Crontab for $USER:"
+        echo "$user_cron"
+        found=1
+    fi
+    if sudo -n true 2>/dev/null; then
+        local root_cron
+        root_cron="$(sudo crontab -l 2>/dev/null || true)"
+        if [[ -n "${root_cron//[[:space:]]/}" ]]; then
+            [[ $found -eq 1 ]] && echo ""
+            echo "Crontab for root:"
+            echo "$root_cron"
+            found=1
+        fi
+    fi
+    if [[ $found -eq 0 ]]; then
+        echo "No crontab entries found."
+    fi
+}
+
 # -- ssh --
 
 function ssh_fix_permisisons() {
