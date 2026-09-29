@@ -298,24 +298,57 @@ function code_install_extensions_from_txt {
     }
 }
 
-function code_wsl_auto {
-    param(
-        [string]$folder_path = (Get-Location).ProviderPath
-    )
-    $executable = if ($env:CODE_EXECUTABLE) { $env:CODE_EXECUTABLE } else { "code" }
-    if (Test-Path -LiteralPath $folder_path) {
-        $folder_path = (Resolve-Path -LiteralPath $folder_path).ProviderPath
+function code_alias_to_auto_open_wsl {
+    function global:_code_auto_open_wsl {
+        param(
+            [Parameter(Position = 0)]
+            [string]$folder_path = (Get-Location).ProviderPath,
+            [Parameter(ValueFromRemainingArguments = $true)]
+            [string[]]$extra_args
+        )
+        $executable = if ($env:CODE_EXECUTABLE) {
+            $env:CODE_EXECUTABLE
+        } else {
+            $found = (Get-Command code -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+            if ($found) { $found } else { "code" }
+        }
+        $is_unc = (Get-Location).ProviderPath.StartsWith('\\')
+        if ($folder_path -like '-*') {
+            if ($is_unc) { Push-Location $env:TEMP }
+            try {
+                & $executable $folder_path @extra_args
+            } finally {
+                if ($is_unc) { Pop-Location }
+            }
+            return
+        }
+        $resolved_path = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($folder_path)
+        $is_file = if (Test-Path -LiteralPath $resolved_path) {
+            Test-Path -LiteralPath $resolved_path -PathType Leaf
+        } else {
+            [System.IO.Path]::HasExtension($resolved_path)
+        }
+        if ($resolved_path -match '^\\\\wsl(?:\.localhost|\$)\\[^\\]+$') {
+            $resolved_path += '\'
+        }
+        if ($is_unc) { Push-Location $env:TEMP }
+        try {
+            if ($resolved_path -match '^\\\\wsl(?:\.localhost|\$)\\([^\\]+)\\(.*)$') {
+                $distro_name = $matches[1]
+                $linux_path = '/' + ($matches[2] -replace '\\', '/')
+                if ($is_file) {
+                    & $executable --file-uri "vscode-remote://wsl+$distro_name$linux_path" @extra_args
+                } else {
+                    & $executable --folder-uri "vscode-remote://wsl+$distro_name$linux_path" @extra_args
+                }
+            } else {
+                & $executable $resolved_path @extra_args
+            }
+        } finally {
+            if ($is_unc) { Pop-Location }
+        }
     }
-    if ($folder_path -match '^\\\\wsl(?:\.localhost|\$)\\[^\\]+$') {
-        $folder_path += '\'
-    }
-    if ($folder_path -match '^\\\\wsl(?:\.localhost|\$)\\([^\\]+)\\(.*)$') {
-        $distro_name = $matches[1]
-        $linux_path = '/' + ($matches[2] -replace '\\', '/')
-        & $executable --remote "wsl+$distro_name" $linux_path
-    } else {
-        & $executable $folder_path
-    }
+    Set-Alias -Name code -Value _code_auto_open_wsl -Scope Global -Option AllScope -Force
 }
 
 

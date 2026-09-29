@@ -127,31 +127,47 @@ function code_install_extensions_from_txt() {
     fi
 }
 
-function code_wsl_auto() {
-    local folder_path="${1:-.}"
-    local executable="${CODE_EXECUTABLE:-code}"
-    if [[ "$folder_path" == "~"* ]]; then
-        folder_path="${folder_path/#\~/$HOME}"
-    fi
-    if type wslpath &>/dev/null && [[ "$folder_path" != \\\\* && "$folder_path" != //* && ! "$folder_path" =~ ^[a-zA-Z]: ]]; then
-        folder_path="$(wslpath -w "$folder_path" 2>/dev/null || echo "$folder_path")"
-    fi
-    if [[ "$folder_path" == //wsl* ]]; then
-        folder_path="\\\\${folder_path#//}"
-        folder_path="${folder_path//\//\\}"
-    fi
-    local re_root='^\\\\wsl(\.localhost|\$)\\[^\\]+$'
-    if [[ "$folder_path" =~ $re_root ]]; then
-        folder_path="${folder_path}\\"
-    fi
-    local re='^\\\\wsl(\.localhost|\$)\\([^\\]+)\\(.*)$'
-    if [[ "$folder_path" =~ $re ]]; then
-        local distro_name="${BASH_REMATCH[2]}"
-        local linux_path="/${BASH_REMATCH[3]//\\//}"
-        "$executable" --remote "wsl+$distro_name" "$linux_path"
-    else
-        "$executable" "$folder_path"
-    fi
+function code_alias_to_auto_open_wsl() {
+    function _code_auto_open_wsl() {
+        if [[ "$1" == -* ]]; then
+            local executable="${CODE_EXECUTABLE:-code}"
+            "$executable" "$@"
+            return $?
+        fi
+        local folder_path="${1:-.}"
+        local executable="${CODE_EXECUTABLE:-code}"
+        local is_file=false
+        if [[ -f "$folder_path" ]]; then
+            is_file=true
+        fi
+        if [[ "$folder_path" == "~"* ]]; then
+            folder_path="${folder_path/#\~/$HOME}"
+        fi
+        if type wslpath &>/dev/null && [[ "$folder_path" != \\\\* && "$folder_path" != //* && ! "$folder_path" =~ ^[a-zA-Z]: ]]; then
+            folder_path="$(wslpath -a -w "$folder_path" 2>/dev/null || echo "$folder_path")"
+        fi
+        if [[ "$folder_path" == //wsl* ]]; then
+            folder_path="\\\\${folder_path#//}"
+            folder_path="${folder_path//\//\\}"
+        fi
+        local re_root='^\\\\wsl(\.localhost|\$)\\[^\\]+$'
+        if [[ "$folder_path" =~ $re_root ]]; then
+            folder_path="${folder_path}\\"
+        fi
+        local re='^\\\\wsl(\.localhost|\$)\\([^\\]+)\\(.*)$'
+        if [[ "$folder_path" =~ $re ]]; then
+            local distro_name="${BASH_REMATCH[2]}"
+            local linux_path="/${BASH_REMATCH[3]//\\//}"
+            if [[ "$is_file" == true ]]; then
+                "$executable" --file-uri "vscode-remote://wsl+$distro_name$linux_path" "${@:2}"
+            else
+                "$executable" --folder-uri "vscode-remote://wsl+$distro_name$linux_path" "${@:2}"
+            fi
+        else
+            "$executable" "$folder_path" "${@:2}"
+        fi
+    }
+    alias code="_code_auto_open_wsl"
 }
 
 # -- install --
