@@ -793,6 +793,11 @@ function win_onedrive_make_folder_avaliable() {
 
 # -- startmenu/desktop --
 
+function win_startmenu_reset {
+    Get-AppxPackage Microsoft.Windows.StartMenuExperienceHost | Reset-AppxPackage
+    Stop-Process -Name "StartMenuExperienceHost" -Force -ErrorAction SilentlyContinue 
+}
+
 function win_startmenu_add_lnk_to_allapps {
     param (
         [Parameter(Mandatory = $true)][string]$exePath,                # Path to the .exe file
