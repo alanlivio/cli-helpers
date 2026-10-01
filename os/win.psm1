@@ -298,57 +298,61 @@ function code_install_extensions_from_txt {
     }
 }
 
-function code_alias_to_auto_open_wsl {
-    function global:_code_auto_open_wsl {
-        param(
-            [Parameter(Position = 0)]
-            [string]$folder_path = (Get-Location).ProviderPath,
-            [Parameter(ValueFromRemainingArguments = $true)]
-            [string[]]$extra_args
-        )
-        $executable = if ($env:CODE_EXECUTABLE) {
-            $env:CODE_EXECUTABLE
-        } else {
-            $found = (Get-Command code -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source
-            if ($found) { $found } else { "code" }
-        }
-        $is_unc = (Get-Location).ProviderPath.StartsWith('\\')
-        if ($folder_path -like '-*') {
-            if ($is_unc) { Push-Location $env:TEMP }
-            try {
-                & $executable $folder_path @extra_args
-            } finally {
-                if ($is_unc) { Pop-Location }
-            }
-            return
-        }
-        $resolved_path = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($folder_path)
-        $is_file = if (Test-Path -LiteralPath $resolved_path) {
-            Test-Path -LiteralPath $resolved_path -PathType Leaf
-        } else {
-            [System.IO.Path]::HasExtension($resolved_path)
-        }
-        if ($resolved_path -match '^\\\\wsl(?:\.localhost|\$)\\[^\\]+$') {
-            $resolved_path += '\'
-        }
+function code_wsl_auto {
+    param(
+        [Parameter(Position = 0)]
+        [string]$folder_path = (Get-Location).ProviderPath,
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]]$extra_args
+    )
+    if ([string]::IsNullOrWhiteSpace($folder_path)) {
+        $folder_path = (Get-Location).ProviderPath
+    }
+    $executable = if ($env:CODE_EXECUTABLE) {
+        $env:CODE_EXECUTABLE
+    } else {
+        $found = (Get-Command code -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+        if ($found) { $found } else { "code" }
+    }
+    $is_unc = (Get-Location).ProviderPath.StartsWith('\\')
+    if ($folder_path -like '-*') {
         if ($is_unc) { Push-Location $env:TEMP }
         try {
-            if ($resolved_path -match '^\\\\wsl(?:\.localhost|\$)\\([^\\]+)\\(.*)$') {
-                $distro_name = $matches[1]
-                $linux_path = '/' + ($matches[2] -replace '\\', '/')
-                if ($is_file) {
-                    & $executable --file-uri "vscode-remote://wsl+$distro_name$linux_path" @extra_args
-                } else {
-                    & $executable --folder-uri "vscode-remote://wsl+$distro_name$linux_path" @extra_args
-                }
-            } else {
-                & $executable $resolved_path @extra_args
-            }
+            & $executable $folder_path @extra_args
         } finally {
             if ($is_unc) { Pop-Location }
         }
+        return
     }
-    Set-Alias -Name code -Value _code_auto_open_wsl -Scope Global -Option AllScope -Force
+    $resolved_path = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($folder_path)
+    $is_file = if (Test-Path -LiteralPath $resolved_path) {
+        Test-Path -LiteralPath $resolved_path -PathType Leaf
+    } else {
+        [System.IO.Path]::HasExtension($resolved_path)
+    }
+    if ($resolved_path -match '^\\\\wsl(?:\.localhost|\$)\\[^\\]+$') {
+        $resolved_path += '\'
+    }
+    if ($is_unc) { Push-Location $env:TEMP }
+    try {
+        if ($resolved_path -match '^\\\\wsl(?:\.localhost|\$)\\([^\\]+)\\(.*)$') {
+            $distro_name = $matches[1]
+            $linux_path = '/' + ($matches[2] -replace '\\', '/')
+            if ($is_file) {
+                & $executable --file-uri "vscode-remote://wsl+$distro_name$linux_path" @extra_args
+            } else {
+                & $executable --folder-uri "vscode-remote://wsl+$distro_name$linux_path" @extra_args
+            }
+        } else {
+            & $executable $resolved_path @extra_args
+        }
+    } finally {
+        if ($is_unc) { Pop-Location }
+    }
+}
+
+function code_alias_to_auto_open_wsl {
+    Set-Alias -Name code -Value code_wsl_auto -Scope Global -Option AllScope -Force
 }
 
 
@@ -662,6 +666,11 @@ function explorer_hide_home_dotfiles {
         $i = Get-Item -LiteralPath $p -Force
         if (-not $i.Attributes.HasFlag($hidden)) { $i.Attributes = $i.Attributes -bor $hidden }
     }
+}
+
+function explorer_restart {
+    taskkill /f /im explorer.exe
+    Start-Process explorer.exe
 }
 
 # -- office --
