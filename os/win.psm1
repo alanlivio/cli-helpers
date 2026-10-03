@@ -30,8 +30,21 @@ function winget_fix_cache() {
     winget source update
 }
 
+function winget_fix_source() {
+    if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping winget_fix_source"; return }
+    Remove-Item -Path "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_*\LocalState\*" -Recurse -Force -ErrorAction SilentlyContinue
+    $cmd = @'
+winget source remove winget
+winget source remove msstore
+winget source add -n winget-rest https://api.winget.microsoft.com/v1 -t Microsoft.Rest
+winget source list
+Read-Host 'Press Enter to close'
+'@
+    $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cmd))
+    Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -EncodedCommand $b64"
+}
+
 function win_os_upgrade() {
-    log_msg "win_os_upgrade"
     if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping"; return }
     # https://gist.github.com/billpieper/a39173afa0b343a14ddeeb1d79ab14ea
     if (-Not(Get-Command Install-WindowsUpdate -errorAction SilentlyContinue)) {
