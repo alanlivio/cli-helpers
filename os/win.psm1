@@ -868,6 +868,14 @@ function win_modern_context_menu_add {
         return
     }
 
+    $devMode = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" -Name "AllowDevelopmentWithoutDevLicense" -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense
+    if ($devMode -ne 1) {
+        log_error "Windows Developer Mode is required to register context menu extensions."
+        log_error "Enable Developer Mode in Settings -> System -> For developers, or run PowerShell as Administrator:"
+        log_error "reg add `"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock`" /t REG_DWORD /f /v `"AllowDevelopmentWithoutDevLicense`" /d `"1`""
+        return
+    }
+
     $shellExtDir = Join-Path $PSScriptRoot "ShellExt"
     $pkgDir = Join-Path $env:LOCALAPPDATA "CliHelpers\pkg\$name"
     if (-not (Test-Path $pkgDir)) {
@@ -943,10 +951,9 @@ function win_modern_context_menu_add {
         }
     }
     if (-not $vcvars -or -not (Test-Path $vcvars)) {
-        log_error "MSVC compiler not found"
+        log_error "MSVC compiler not found. Install with: winget install Microsoft.VisualStudio.2022.BuildTools --override `"--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended`""
         return
     }
-
     $cppPath = Join-Path $pkgDir "ShellExt.cpp"
     $dllPath = Join-Path $pkgDir "ShellExt.dll"
     $defPath = Join-Path $pkgDir "ShellExt.def"
@@ -984,7 +991,14 @@ function win_modern_context_menu_add {
     $manifestPath = Join-Path $pkgDir "AppxManifest.xml"
     $prev = $ProgressPreference
     $ProgressPreference = 'SilentlyContinue'
-    Add-AppxPackage -Path (Resolve-Path $manifestPath).ProviderPath -Register
+    try {
+        Add-AppxPackage -Path (Resolve-Path $manifestPath).ProviderPath -Register -ErrorAction Stop
+    } catch {
+        log_error "Failed to register Appx package: $_"
+        log_error "Ensure Developer Mode is enabled: reg add `"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock`" /t REG_DWORD /f /v `"AllowDevelopmentWithoutDevLicense`" /d `"1`""
+        $ProgressPreference = $prev
+        return
+    }
     $ProgressPreference = $prev
     explorer_restart
 }
