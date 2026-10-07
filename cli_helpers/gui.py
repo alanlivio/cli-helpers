@@ -6,65 +6,214 @@ import sys
 import re
 import signal
 import subprocess
+from enum import Enum
 from pathlib import Path
 
 os.environ.setdefault(
     "QT_LOGGING_RULES",
-    "qt.qpa.fonts.warning=false;qt.text.font.warning=false;*.debug=false",
+    "qt.qpa.fonts.warning=false;qt.text.font.warning=false;fluentqt.typography.warning=false;*.debug=false",
 )
 
-try:
-    import PyQt5
-
-    _qt5_fonts = os.path.join(
-        os.path.dirname(PyQt5.__file__), "Qt5", "lib", "fonts"
-    )
-    os.makedirs(_qt5_fonts, exist_ok=True)
-except Exception:
-    pass
-
-from PyQt5.QtCore import (
+from PySide6.QtCore import (
     Qt,
     QTimer,
     qInstallMessageHandler,
     QSettings,
+    QFileInfo,
 )
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QApplication,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QSizePolicy,
+    QLabel,
+    QPlainTextEdit,
+    QFileIconProvider,
 )
-from PyQt5.QtGui import QFont, QPalette, QColor
+from PySide6.QtGui import QFont, QPalette, QColor, QIcon
 
-_stdout = sys.stdout
-_stderr = sys.stderr
-try:
-    sys.stdout = io.StringIO()
-    sys.stderr = io.StringIO()
-    from qframelesswindow import FramelessWindow
-    from qfluentwidgets import (
-        MSFluentTitleBar,
-        setTheme,
-        Theme,
-        FluentIcon,
-        CardWidget,
-        SubtitleLabel,
-        BodyLabel,
-        CaptionLabel,
-        PushButton,
-        PrimaryPushButton,
-        ComboBox,
-        LineEdit,
-        TextEdit,
-        IndeterminateProgressBar,
-        InfoBadge,
-        InfoLevel,
-    )
-finally:
-    sys.stdout = _stdout
-    sys.stderr = _stderr
+import fluentqt
+
+
+def get_python_icon():
+    try:
+        provider = QFileIconProvider()
+        icon = provider.icon(QFileInfo(sys.executable))
+        if not icon.isNull():
+            return icon
+    except Exception:
+        pass
+    return QIcon()
+
+
+class Theme:
+    DARK = fluentqt.Theme.Dark
+    LIGHT = fluentqt.Theme.Light
+
+
+def setTheme(theme):
+    if theme == Theme.DARK or theme == "dark":
+        fluentqt.setTheme(fluentqt.Theme.Dark)
+    elif theme == Theme.LIGHT or theme == "light":
+        fluentqt.setTheme(fluentqt.Theme.Light)
+    else:
+        fluentqt.setTheme(theme)
+
+
+class FluentIcon:
+    SYNC = "\ue72c"
+    DELETE = "\ue74d"
+    PLAY = "\ue768"
+
+
+class PushButton(fluentqt.Button):
+    def __init__(self, text="", parent=None, icon=None):
+        super().__init__(text, parent)
+        if icon is not None:
+            self.setIconGlyph(icon, 16)
+
+
+class PrimaryPushButton(fluentqt.Button):
+    def __init__(self, text="", parent=None, icon=None):
+        super().__init__(text, parent, fluentStyle=fluentqt.Button.ButtonStyle.Accent)
+        if icon is not None:
+            self.setIconGlyph(icon, 16)
+
+
+class CardWidget(fluentqt.Card):
+    pass
+
+
+class SubtitleLabel(QLabel):
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self.setStyleSheet("font-size: 16px; font-weight: 600; color: #ffffff;")
+
+
+class BodyLabel(QLabel):
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self.setStyleSheet("font-size: 13px; color: #e0e0e0;")
+
+
+class CaptionLabel(QLabel):
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self.setStyleSheet("font-size: 12px; color: #8a8a8a;")
+
+    def setTextColor(self, *args):
+        pass
+
+
+class ComboBox(fluentqt.ComboBox):
+    def addItem(self, *args, **kwargs):
+        was_empty = self.count() == 0
+        super().addItem(*args, **kwargs)
+        if was_empty and self.count() > 0 and self.currentIndex() == -1:
+            self.setCurrentIndex(0)
+
+    def addItems(self, *args, **kwargs):
+        was_empty = self.count() == 0
+        super().addItems(*args, **kwargs)
+        if was_empty and self.count() > 0 and self.currentIndex() == -1:
+            self.setCurrentIndex(0)
+
+
+class LineEdit(fluentqt.LineEdit):
+    pass
+
+
+class TextEdit(QPlainTextEdit):
+    def append(self, message):
+        self.appendPlainText(message)
+        sb = self.verticalScrollBar()
+        if sb:
+            sb.setValue(sb.maximum())
+
+
+class IndeterminateProgressBar(fluentqt.ProgressBar):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setIsIndeterminate(True)
+        self.setFixedHeight(4)
+
+    def start(self):
+        self.setIsIndeterminate(True)
+
+    def stop(self):
+        pass
+
+
+class InfoLevel(Enum):
+    INFO = "info"
+    SUCCESS = "success"
+    WARNING = "warning"
+    ERROR = "error"
+
+
+class InfoBadge(QLabel):
+    def __init__(self, text="Checking...", parent=None):
+        super().__init__(text, parent)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setLevel(InfoLevel.INFO)
+
+    def text(self):
+        return super().text()
+
+    def setText(self, text):
+        super().setText(text)
+
+    def setLevel(self, level):
+        self.level = level
+        if level == InfoLevel.SUCCESS:
+            bg, fg = "#107c41", "#ffffff"
+        elif level == InfoLevel.WARNING:
+            bg, fg = "#ca5010", "#ffffff"
+        elif level == InfoLevel.ERROR:
+            bg, fg = "#a80000", "#ffffff"
+        else:
+            bg, fg = "#3b3a39", "#d0d0d0"
+        self.setStyleSheet(f"""
+            QLabel {{
+                background-color: {bg};
+                color: {fg};
+                border-radius: 4px;
+                padding: 2px 8px;
+                font-size: 11px;
+                font-weight: 500;
+            }}
+        """)
+
+    @classmethod
+    def info(cls, text=""):
+        badge = cls(text)
+        badge.setLevel(InfoLevel.INFO)
+        return badge
+
+
+class TitleLabel:
+    def __init__(self, wrapper):
+        self._wrapper = wrapper
+
+    def text(self):
+        return self._wrapper._title
+
+
+class TitleBarWrapper:
+    def __init__(self, tb, title="cli-helpers GUI"):
+        self._tb = tb
+        self._title = title
+        self.titleLabel = TitleLabel(self)
+
+    def setTitle(self, title):
+        self._title = title
+        if self._tb and hasattr(self._tb, "setWindowTitle"):
+            self._tb.setWindowTitle(title)
+
+    def raise_(self):
+        if self._tb and hasattr(self._tb, "raise_"):
+            self._tb.raise_()
 
 
 def _handle_exception(exctype, value, tb):
@@ -78,12 +227,15 @@ sys.excepthook = _handle_exception
 
 
 def _qt_message_handler(mode, context, message):
-    if "Cannot find font directory" in message or "Qt no longer ships fonts" in message:
+    if (
+        "Cannot find font directory" in message
+        or "Qt no longer ships fonts" in message
+        or "initializeResources requires a QGuiApplication instance" in message
+    ):
         return
 
 
 qInstallMessageHandler(_qt_message_handler)
-
 
 
 from .workers import (
@@ -94,8 +246,10 @@ from .workers import (
 )
 
 
-class MainWindow(FramelessWindow):
+class MainWindow(fluentqt.Window):
     def __init__(self, refresh=True):
+        if QApplication.instance():
+            fluentqt.initialize_resources()
         super().__init__()
         self.resize(720, 800)
 
@@ -105,55 +259,25 @@ class MainWindow(FramelessWindow):
         self._task_worker = None
         self._cached_ps_exe = None
 
-        palette = self.palette()
-        palette.setColor(QPalette.Window, QColor("#202020"))
-        self.setPalette(palette)
-
-        self.title_bar = MSFluentTitleBar(self)
-        self.setTitleBar(self.title_bar)
+        setTheme(Theme.DARK)
         self.setWindowTitle("cli-helpers GUI")
-        self.title_bar.setTitle("cli-helpers GUI")
+
+        self.native_title_bar = self.titleBar()
+        if self.native_title_bar:
+            self.native_title_bar.setWindowTitle("cli-helpers GUI")
+        self.title_bar = TitleBarWrapper(self.native_title_bar, "cli-helpers GUI")
+
+        icon = get_python_icon()
+        if not icon.isNull():
+            self.setWindowIcon(icon)
+            if self.native_title_bar and hasattr(self.native_title_bar, "setWindowIcon"):
+                self.native_title_bar.setWindowIcon(icon)
 
         if sys.platform == "win32":
             try:
-                from qframelesswindow.windows import win_utils
-                if win_utils.isGreaterEqualWin11():
-                    self.windowEffect.setMicaEffect(int(self.winId()), isDarkMode=True)
-                    self.setStyleSheet("""
-                        MainWindow {
-                            background: transparent;
-                        }
-                        #rootWidget {
-                            background: transparent;
-                        }
-                    """)
-                else:
-                    self.setStyleSheet("""
-                        MainWindow {
-                            background-color: #202020;
-                        }
-                        #rootWidget {
-                            background: transparent;
-                        }
-                    """)
+                self.setBackdropEffect(fluentqt.BackdropEffect.Mica)
             except Exception:
-                self.setStyleSheet("""
-                    MainWindow {
-                        background-color: #202020;
-                    }
-                    #rootWidget {
-                        background: transparent;
-                    }
-                """)
-        else:
-            self.setStyleSheet("""
-                MainWindow {
-                    background-color: #202020;
-                }
-                #rootWidget {
-                    background: transparent;
-                }
-            """)
+                pass
 
         self._init_ui()
         self._center_window()
@@ -213,7 +337,7 @@ class MainWindow(FramelessWindow):
         self.tb_helpers_user.setFixedWidth(100)
         self.tb_helpers_user.setToolTip("cli-helpers will be downloaded from https://github.com/<USER>/cli-helpers")
         self.helpers_repo_suffix = CaptionLabel("/cli-helpers")
-        self.btn_install_helpers = PushButton("Install helpers")
+        self.btn_install_helpers = PushButton("Clone helpers")
         self.btn_install_helpers.setFixedWidth(125)
         self.btn_install_helpers.clicked.connect(self.install_or_update_helpers)
         helpers_row.addWidget(self.helpers_label)
@@ -236,7 +360,7 @@ class MainWindow(FramelessWindow):
         self.tb_username.setFixedWidth(100)
         self.tb_username.setToolTip("Dotfiles will be downloaded from https://github.com/<USER>/dotfiles")
         self.dotfiles_repo_suffix = CaptionLabel("/dotfiles")
-        self.btn_clone_dotfiles = PushButton("Download dotfiles")
+        self.btn_clone_dotfiles = PushButton("Clone dotfiles")
         self.btn_clone_dotfiles.setFixedWidth(125)
         self.btn_clone_dotfiles.clicked.connect(self.clone_or_update_dotfiles)
         dotfiles_row.addWidget(self.dotfiles_label)
@@ -272,7 +396,7 @@ class MainWindow(FramelessWindow):
         my_label.setFixedWidth(100)
         self.my_task_selector = ComboBox()
         self.my_task_selector.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Fixed
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
         self.my_task_selector.setPlaceholderText("No my_ helpers found")
         self.btn_run_my_task = PushButton("Run", self, FluentIcon.PLAY)
@@ -288,7 +412,7 @@ class MainWindow(FramelessWindow):
         recent_label.setFixedWidth(100)
         self.recent_task_selector = ComboBox()
         self.recent_task_selector.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Fixed
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
         self.recent_task_selector.setPlaceholderText("No recent tasks")
         self.btn_run_recent_task = PushButton("Run", self, FluentIcon.PLAY)
@@ -304,9 +428,9 @@ class MainWindow(FramelessWindow):
         task_label.setFixedWidth(100)
         self.task_selector = ComboBox()
         self.task_selector.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Fixed
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
-        self.btn_run_task = PrimaryPushButton("Run Task", self, FluentIcon.PLAY)
+        self.btn_run_task = PushButton("Run Task", self, FluentIcon.PLAY)
         self.btn_run_task.setFixedWidth(135)
         self.btn_run_task.clicked.connect(self.run_task)
         task_selector_row.addWidget(task_label)
@@ -333,21 +457,38 @@ class MainWindow(FramelessWindow):
         self.output_box = TextEdit()
         self.output_box.setReadOnly(True)
         mono_font = QFont("Consolas")
-        mono_font.setStyleHint(QFont.Monospace)
+        mono_font.setStyleHint(QFont.StyleHint.Monospace)
         mono_font.setPointSize(9)
         self.output_box.setFont(mono_font)
         self.output_box.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Expanding
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
         self.output_box.setStyleSheet("""
-            TextEdit {
+            QPlainTextEdit {
                 background-color: rgba(0, 0, 0, 0.35);
                 border: 1px solid rgba(255, 255, 255, 0.08);
                 border-radius: 6px;
                 color: #e0e0e0;
+                padding: 8px;
+            }
+            QScrollBar:vertical {
+                background: transparent;
+                width: 8px;
+                margin: 2px 0 2px 0;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(255, 255, 255, 0.2);
+                min-height: 20px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: rgba(255, 255, 255, 0.35);
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
             }
         """)
-        output_layout.addWidget(self.output_box)
+        output_layout.addWidget(self.output_box, 1)
 
         root_layout.addWidget(output_card, 1)
 
@@ -361,11 +502,7 @@ class MainWindow(FramelessWindow):
         footer_layout.addWidget(self.status_label)
         root_layout.addLayout(footer_layout)
 
-        main_layout = QVBoxLayout(self)
-        self.setLayout(main_layout)
-        main_layout.setContentsMargins(0, 48, 0, 0)
-        main_layout.addWidget(root_widget)
-        self.titleBar.raise_()
+        self.setContentWidget(root_widget)
         self._update_recent_selector()
 
     def set_busy(self, busy, status=None):
@@ -506,7 +643,7 @@ class MainWindow(FramelessWindow):
         else:
             self.helpers_badge.setText("Not installed")
             self.helpers_badge.setLevel(InfoLevel.ERROR)
-            self.btn_install_helpers.setText("Install helpers")
+            self.btn_install_helpers.setText("Clone helpers")
             if not self.tb_helpers_user.text().strip():
                 self.tb_helpers_user.setText(info.get("helpers_user", "alanlivio"))
 
@@ -523,7 +660,7 @@ class MainWindow(FramelessWindow):
         else:
             self.dotfiles_badge.setText("Not installed")
             self.dotfiles_badge.setLevel(InfoLevel.ERROR)
-            self.btn_clone_dotfiles.setText("Download dotfiles")
+            self.btn_clone_dotfiles.setText("Clone dotfiles")
 
         if info.get("helpers_path"):
             self.helpers_label.setToolTip(f"Local path: {info['helpers_path']}")
@@ -643,8 +780,8 @@ class MainWindow(FramelessWindow):
                     f"https://github.com/{username}/cli-helpers.git",
                     target_dir,
                 ],
-                status_msg="Installing cli-helpers...",
-                on_success_msg="cli-helpers installed.",
+                status_msg="Cloning cli-helpers...",
+                on_success_msg="cli-helpers cloned.",
             )
 
     def clone_or_update_dotfiles(self):
@@ -653,7 +790,7 @@ class MainWindow(FramelessWindow):
 
         if not dotfiles_path and not username:
             self.add_output(
-                "Validation error: Please enter a GitHub username to download dotfiles."
+                "Validation error: Please enter a GitHub username to clone dotfiles."
             )
             self.status_label.setText("Username required.")
             return
@@ -673,7 +810,7 @@ class MainWindow(FramelessWindow):
             target_dir = os.path.join(user_profile, "src", "dotfiles")
             parent_dir = os.path.join(user_profile, "src")
             os.makedirs(parent_dir, exist_ok=True)
-            self.add_output(f"Downloading {username}/dotfiles to {target_dir}...")
+            self.add_output(f"Cloning {username}/dotfiles into {target_dir}...")
             self.run_worker_command(
                 "git",
                 [
@@ -681,8 +818,8 @@ class MainWindow(FramelessWindow):
                     f"https://github.com/{username}/dotfiles.git",
                     target_dir,
                 ],
-                status_msg=f"Downloading {username}/dotfiles...",
-                on_success_msg=f"dotfiles installed at {target_dir}",
+                status_msg=f"Cloning {username}/dotfiles...",
+                on_success_msg=f"dotfiles cloned at {target_dir}",
             )
 
     def _load_recent_tasks(self):
@@ -798,12 +935,18 @@ class MainWindow(FramelessWindow):
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
-        self.titleBar.raise_()
+        if hasattr(self, "title_bar") and hasattr(self.title_bar, "raise_"):
+            self.title_bar.raise_()
 
 
 def main():
+    fluentqt.prepare_high_dpi_application()
     signal.signal(signal.SIGINT, lambda *_: QApplication.quit())
     app = QApplication(sys.argv)
+    icon = get_python_icon()
+    if not icon.isNull():
+        app.setWindowIcon(icon)
+    fluentqt.initialize_resources()
 
     timer = QTimer()
     timer.timeout.connect(lambda: None)
@@ -814,7 +957,7 @@ def main():
     window.show()
 
     try:
-        sys.exit(app.exec_())
+        sys.exit(app.exec())
     except KeyboardInterrupt:
         sys.exit(0)
 

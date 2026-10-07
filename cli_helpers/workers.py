@@ -5,15 +5,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PyQt5.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 
 
 class HelperWorker(QThread):
-    output_line = pyqtSignal(str)
-    output_message = pyqtSignal(str)
-    helpers_loaded = pyqtSignal(list)
+    output_line = Signal(str)
+    output_message = Signal(str)
+    helpers_loaded = Signal(list)
     tasks_loaded = helpers_loaded
-    finished = pyqtSignal(int)
+    finished = Signal(int)
 
     def __init__(
         self, command, args, cwd=None, parse_helpers=False, parse_tasks=False
@@ -269,7 +269,7 @@ def build_helper_command(
 
 
 class StatusCheckWorker(QThread):
-    status_ready = pyqtSignal(dict)
+    status_ready = Signal(dict)
 
     def __init__(self, helpers_path, dotfiles_path):
         super().__init__()

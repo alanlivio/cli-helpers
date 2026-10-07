@@ -6,19 +6,19 @@ from pathlib import Path
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-from qfluentwidgets import InfoLevel
 from cli_helpers.gui import (
     MainWindow,
     HelperWorker,
     StatusCheckWorker,
     HelperDiscoveryWorker,
     build_helper_command,
+    InfoLevel,
 )
 
 
@@ -57,6 +57,7 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.github_prefix_label.text(), "github.com/")
         self.assertEqual(self.window.tb_username.placeholderText(), "USER")
         self.assertEqual(self.window.dotfiles_repo_suffix.text(), "/dotfiles")
+        self.assertFalse(self.window.windowIcon().isNull())
 
     def test_path_discovery(self):
         ps = self.window.get_powershell_executable()
@@ -140,8 +141,10 @@ class TestGui(unittest.TestCase):
         self.window._on_status_ready(mock_info)
         self.assertEqual(self.window.helpers_badge.text(), "Not installed")
         self.assertEqual(self.window.helpers_badge.level, InfoLevel.ERROR)
+        self.assertEqual(self.window.btn_install_helpers.text(), "Clone helpers")
         self.assertEqual(self.window.dotfiles_badge.text(), "Not installed")
         self.assertEqual(self.window.dotfiles_badge.level, InfoLevel.ERROR)
+        self.assertEqual(self.window.btn_clone_dotfiles.text(), "Clone dotfiles")
 
     def test_tasks_loaded_callback(self):
         tasks = ["win_task_a", "ubu_task_b", "my_task_c"]
