@@ -176,7 +176,38 @@ class StatusCheckWorker(QThread):
         self.helpers_path = helpers_path
         self.dotfiles_path = dotfiles_path
 
+    def _is_repo_updated(self, repo_path, creation_flags):
+        if not repo_path or not os.path.isdir(repo_path):
+            return True
+        try:
+            subprocess.run(
+                ["git", "-C", repo_path, "fetch", "origin", "main"],
+                capture_output=True,
+                timeout=4,
+                creationflags=creation_flags,
+            )
+        except Exception:
+            pass
+
+        for ref in ["HEAD..@{u}", "HEAD..origin/main"]:
+            try:
+                res = subprocess.run(
+                    ["git", "-C", repo_path, "rev-list", "--count", ref],
+                    capture_output=True,
+                    text=True,
+                    timeout=2,
+                    creationflags=creation_flags,
+                )
+                if res.returncode == 0 and res.stdout.strip().isdigit():
+                    count = int(res.stdout.strip())
+                    if count > 0:
+                        return False
+            except Exception:
+                pass
+        return True
+
     def run(self):
+        user_profile = str(Path.home())
         result = {
             "git_installed": False,
             "git_version": "",
@@ -184,10 +215,15 @@ class StatusCheckWorker(QThread):
                 self.helpers_path
                 and os.path.isfile(os.path.join(self.helpers_path, "init.ps1"))
             ),
+            "helpers_updated": True,
+            "helpers_path": self.helpers_path or os.path.join(user_profile, "src", "cli-helpers"),
+            "helpers_user": "",
             "dotfiles_installed": bool(
                 self.dotfiles_path
                 and os.path.isfile(os.path.join(self.dotfiles_path, "init.ps1"))
             ),
+            "dotfiles_updated": True,
+            "dotfiles_path": self.dotfiles_path or os.path.join(user_profile, "src", "dotfiles"),
             "dotfiles_user": "",
         }
 
@@ -211,6 +247,35 @@ class StatusCheckWorker(QThread):
                 )
         except Exception:
             pass
+
+        if self.helpers_path and os.path.isdir(self.helpers_path):
+            try:
+                res = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        self.helpers_path,
+                        "config",
+                        "--get",
+                        "remote.origin.url",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    creationflags=creation_flags,
+                )
+                if res.returncode == 0 and res.stdout:
+                    match = re.search(r"github\.com[:/]([^/]+)", res.stdout)
+                    if match:
+                        result["helpers_user"] = match.group(1).replace(
+                            ".git", ""
+                        ).strip()
+            except Exception:
+                pass
+
+        if not result["helpers_user"]:
+            result["helpers_user"] = "alanlivio"
 
         if self.dotfiles_path and os.path.isdir(self.dotfiles_path):
             try:
@@ -266,13 +331,23 @@ class StatusCheckWorker(QThread):
                     except Exception:
                         pass
 
+        if result["helpers_installed"]:
+            result["helpers_updated"] = self._is_repo_updated(
+                self.helpers_path, creation_flags
+            )
+
+        if result["dotfiles_installed"]:
+            result["dotfiles_updated"] = self._is_repo_updated(
+                self.dotfiles_path, creation_flags
+            )
+
         self.status_ready.emit(result)
 
 
 class MainWindow(FramelessWindow):
     def __init__(self):
         super().__init__()
-        self.resize(620, 800)
+        self.resize(720, 800)
 
         self._active_worker = None
         self._cached_ps_exe = None
@@ -361,45 +436,61 @@ class MainWindow(FramelessWindow):
         setup_layout.addLayout(setup_header)
 
         git_row = QHBoxLayout()
-        git_label = BodyLabel("Git:")
-        git_label.setFixedWidth(100)
+        self.git_label = BodyLabel("Git:")
+        self.git_label.setFixedWidth(135)
         self.git_badge = InfoBadge.info("Checking...")
         self.btn_install_git = PushButton("Install Git")
-        self.btn_install_git.setFixedWidth(135)
+        self.btn_install_git.setFixedWidth(125)
         self.btn_install_git.clicked.connect(self.install_git)
-        git_row.addWidget(git_label)
+        git_row.addWidget(self.git_label)
         git_row.addWidget(self.git_badge)
         git_row.addStretch()
         git_row.addWidget(self.btn_install_git)
         setup_layout.addLayout(git_row)
 
         helpers_row = QHBoxLayout()
-        helpers_label = BodyLabel("cli-helpers:")
-        helpers_label.setFixedWidth(100)
+        self.helpers_label = BodyLabel("~/src/cli-helpers:")
+        self.helpers_label.setFixedWidth(135)
+        self.helpers_label.setToolTip("Local path: ~/src/cli-helpers")
         self.helpers_badge = InfoBadge.info("Checking...")
+        self.helpers_github_prefix = CaptionLabel("github.com/")
+        self.tb_helpers_user = LineEdit()
+        self.tb_helpers_user.setPlaceholderText("USER")
+        self.tb_helpers_user.setFixedWidth(100)
+        self.tb_helpers_user.setToolTip("cli-helpers will be downloaded from https://github.com/<USER>/cli-helpers")
+        self.helpers_repo_suffix = CaptionLabel("/cli-helpers")
         self.btn_install_helpers = PushButton("Install helpers")
-        self.btn_install_helpers.setFixedWidth(135)
+        self.btn_install_helpers.setFixedWidth(125)
         self.btn_install_helpers.clicked.connect(self.install_or_update_helpers)
-        helpers_row.addWidget(helpers_label)
+        helpers_row.addWidget(self.helpers_label)
         helpers_row.addWidget(self.helpers_badge)
         helpers_row.addStretch()
+        helpers_row.addWidget(self.helpers_github_prefix)
+        helpers_row.addWidget(self.tb_helpers_user)
+        helpers_row.addWidget(self.helpers_repo_suffix)
         helpers_row.addWidget(self.btn_install_helpers)
         setup_layout.addLayout(helpers_row)
 
         dotfiles_row = QHBoxLayout()
-        dotfiles_label = BodyLabel("dotfiles:")
-        dotfiles_label.setFixedWidth(100)
+        self.dotfiles_label = BodyLabel("~/src/dotfiles:")
+        self.dotfiles_label.setFixedWidth(135)
+        self.dotfiles_label.setToolTip("Local path: ~/src/dotfiles")
         self.dotfiles_badge = InfoBadge.info("Checking...")
+        self.github_prefix_label = CaptionLabel("github.com/")
         self.tb_username = LineEdit()
-        self.tb_username.setPlaceholderText("GitHub username")
-        self.tb_username.setFixedWidth(140)
+        self.tb_username.setPlaceholderText("USER")
+        self.tb_username.setFixedWidth(100)
+        self.tb_username.setToolTip("Dotfiles will be downloaded from https://github.com/<USER>/dotfiles")
+        self.dotfiles_repo_suffix = CaptionLabel("/dotfiles")
         self.btn_clone_dotfiles = PushButton("Download dotfiles")
-        self.btn_clone_dotfiles.setFixedWidth(135)
+        self.btn_clone_dotfiles.setFixedWidth(125)
         self.btn_clone_dotfiles.clicked.connect(self.clone_or_update_dotfiles)
-        dotfiles_row.addWidget(dotfiles_label)
+        dotfiles_row.addWidget(self.dotfiles_label)
         dotfiles_row.addWidget(self.dotfiles_badge)
         dotfiles_row.addStretch()
+        dotfiles_row.addWidget(self.github_prefix_label)
         dotfiles_row.addWidget(self.tb_username)
+        dotfiles_row.addWidget(self.dotfiles_repo_suffix)
         dotfiles_row.addWidget(self.btn_clone_dotfiles)
         setup_layout.addLayout(dotfiles_row)
 
@@ -511,14 +602,15 @@ class MainWindow(FramelessWindow):
         self.progress_bar = IndeterminateProgressBar(self)
         self.progress_bar.setVisible(False)
         self.status_label = CaptionLabel("Ready")
-        self.status_label.setTextColor("#8a8a8a", "#8a8a8a")
+        self.status_label.setTextColor(QColor("#8a8a8a"), QColor("#8a8a8a"))
         footer_layout.addWidget(self.progress_bar)
         footer_layout.addWidget(self.status_label)
         root_layout.addLayout(footer_layout)
 
-        self.setLayout(QVBoxLayout(self))
-        self.layout().setContentsMargins(0, 48, 0, 0)
-        self.layout().addWidget(root_widget)
+        main_layout = QVBoxLayout(self)
+        self.setLayout(main_layout)
+        main_layout.setContentsMargins(0, 48, 0, 0)
+        main_layout.addWidget(root_widget)
         self.titleBar.raise_()
         self._update_recent_selector()
 
@@ -637,24 +729,44 @@ class MainWindow(FramelessWindow):
             self.btn_install_git.setEnabled(True)
 
         if info["helpers_installed"]:
-            self.helpers_badge.setText("Installed")
-            self.helpers_badge.setLevel(InfoLevel.SUCCESS)
+            if info.get("helpers_updated", True):
+                self.helpers_badge.setText("Installed")
+                self.helpers_badge.setLevel(InfoLevel.SUCCESS)
+            else:
+                self.helpers_badge.setText("Not updated")
+                self.helpers_badge.setLevel(InfoLevel.WARNING)
             self.btn_install_helpers.setText("Update helpers")
+            if info.get("helpers_user") and not self.tb_helpers_user.text().strip():
+                self.tb_helpers_user.setText(info["helpers_user"])
         else:
             self.helpers_badge.setText("Not installed")
-            self.helpers_badge.setLevel(InfoLevel.WARNING)
+            self.helpers_badge.setLevel(InfoLevel.ERROR)
             self.btn_install_helpers.setText("Install helpers")
+            if not self.tb_helpers_user.text().strip():
+                self.tb_helpers_user.setText(info.get("helpers_user", "alanlivio"))
 
         if info["dotfiles_installed"]:
-            self.dotfiles_badge.setText("Installed")
-            self.dotfiles_badge.setLevel(InfoLevel.SUCCESS)
+            if info.get("dotfiles_updated", True):
+                self.dotfiles_badge.setText("Installed")
+                self.dotfiles_badge.setLevel(InfoLevel.SUCCESS)
+            else:
+                self.dotfiles_badge.setText("Not updated")
+                self.dotfiles_badge.setLevel(InfoLevel.WARNING)
             self.btn_clone_dotfiles.setText("Update dotfiles")
             if info["dotfiles_user"] and not self.tb_username.text().strip():
                 self.tb_username.setText(info["dotfiles_user"])
         else:
             self.dotfiles_badge.setText("Not installed")
-            self.dotfiles_badge.setLevel(InfoLevel.WARNING)
+            self.dotfiles_badge.setLevel(InfoLevel.ERROR)
             self.btn_clone_dotfiles.setText("Download dotfiles")
+
+        if info.get("helpers_path"):
+            self.helpers_label.setToolTip(f"Local path: {info['helpers_path']}")
+            self.helpers_badge.setToolTip(f"Local path: {info['helpers_path']}")
+
+        if info.get("dotfiles_path"):
+            self.dotfiles_label.setToolTip(f"Local path: {info['dotfiles_path']}")
+            self.dotfiles_badge.setToolTip(f"Local path: {info['dotfiles_path']}")
 
     def initialize_tasks(self):
         self.set_busy(True, "Loading profile tasks...")
@@ -751,6 +863,16 @@ class MainWindow(FramelessWindow):
 
     def install_or_update_helpers(self):
         helpers_path = self.get_cli_helpers_path()
+        username = (
+            self.tb_helpers_user.text().strip()
+            if hasattr(self, "tb_helpers_user")
+            else ""
+        )
+        if not username:
+            username = "alanlivio"
+        username = re.sub(r"^(https?://)?github\.com/", "", username).strip("/")
+        username = re.sub(r"/cli-helpers(\.git)?$", "", username)
+
         if helpers_path:
             self.add_output(f"Updating cli-helpers at {helpers_path}...")
             self.run_worker_command(
@@ -764,12 +886,12 @@ class MainWindow(FramelessWindow):
             target_dir = os.path.join(user_profile, "src", "cli-helpers")
             parent_dir = os.path.join(user_profile, "src")
             os.makedirs(parent_dir, exist_ok=True)
-            self.add_output(f"Cloning cli-helpers into {target_dir}...")
+            self.add_output(f"Cloning {username}/cli-helpers into {target_dir}...")
             self.run_worker_command(
                 "git",
                 [
                     "clone",
-                    "https://github.com/alanlivio/cli-helpers.git",
+                    f"https://github.com/{username}/cli-helpers.git",
                     target_dir,
                 ],
                 status_msg="Installing cli-helpers...",
@@ -796,6 +918,8 @@ class MainWindow(FramelessWindow):
                 on_success_msg="dotfiles updated.",
             )
         else:
+            username = re.sub(r"^(https?://)?github\.com/", "", username).strip("/")
+            username = re.sub(r"/dotfiles(\.git)?$", "", username)
             user_profile = str(Path.home())
             target_dir = os.path.join(user_profile, "src", "dotfiles")
             parent_dir = os.path.join(user_profile, "src")
@@ -932,14 +1056,14 @@ class MainWindow(FramelessWindow):
         self._active_worker.start()
 
 
-    def closeEvent(self, event):
+    def closeEvent(self, a0):
         if self._active_worker and self._active_worker.isRunning():
             self._active_worker.terminate()
             self._active_worker.wait(500)
-        super().closeEvent(event)
+        super().closeEvent(a0)
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
         self.titleBar.raise_()
 
 

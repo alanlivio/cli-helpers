@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -11,6 +12,7 @@ root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
+from qfluentwidgets import InfoLevel
 from cli_helpers.gui import (
     MainWindow,
     CommandWorker,
@@ -37,6 +39,14 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.setup_title.text(), "Setup")
         self.assertEqual(self.window.tasks_title.text(), "Run")
         self.assertEqual(self.window.output_title.text(), "Output log")
+        self.assertEqual(self.window.helpers_label.text(), "~/src/cli-helpers:")
+        self.assertEqual(self.window.helpers_github_prefix.text(), "github.com/")
+        self.assertEqual(self.window.tb_helpers_user.placeholderText(), "USER")
+        self.assertEqual(self.window.helpers_repo_suffix.text(), "/cli-helpers")
+        self.assertEqual(self.window.dotfiles_label.text(), "~/src/dotfiles:")
+        self.assertEqual(self.window.github_prefix_label.text(), "github.com/")
+        self.assertEqual(self.window.tb_username.placeholderText(), "USER")
+        self.assertEqual(self.window.dotfiles_repo_suffix.text(), "/dotfiles")
 
     def test_path_discovery(self):
         ps = self.window.get_powershell_executable()
@@ -44,6 +54,7 @@ class TestGui(unittest.TestCase):
 
         helpers_path = self.window.get_cli_helpers_path()
         self.assertIsNotNone(helpers_path)
+        assert helpers_path is not None
         self.assertTrue(os.path.isdir(helpers_path))
         self.assertTrue(os.path.isfile(os.path.join(helpers_path, "init.ps1")))
 
@@ -78,16 +89,49 @@ class TestGui(unittest.TestCase):
             "git_installed": True,
             "git_version": "v2.55.0",
             "helpers_installed": True,
+            "helpers_user": "helperuser",
             "dotfiles_installed": True,
             "dotfiles_user": "testuser",
         }
         self.window._on_status_ready(mock_info)
         self.assertEqual(self.window.git_badge.text(), "Installed")
         self.assertEqual(self.window.helpers_badge.text(), "Installed")
+        self.assertEqual(self.window.helpers_badge.level, InfoLevel.SUCCESS)
         self.assertEqual(self.window.dotfiles_badge.text(), "Installed")
+        self.assertEqual(self.window.dotfiles_badge.level, InfoLevel.SUCCESS)
         self.assertEqual(self.window.btn_install_helpers.text(), "Update helpers")
         self.assertEqual(self.window.btn_clone_dotfiles.text(), "Update dotfiles")
+        self.assertEqual(self.window.tb_helpers_user.text(), "helperuser")
         self.assertEqual(self.window.tb_username.text(), "testuser")
+
+    def test_status_not_updated(self):
+        mock_info = {
+            "git_installed": True,
+            "git_version": "v2.55.0",
+            "helpers_installed": True,
+            "helpers_updated": False,
+            "helpers_user": "helperuser",
+            "dotfiles_installed": True,
+            "dotfiles_updated": False,
+            "dotfiles_user": "testuser",
+        }
+        self.window._on_status_ready(mock_info)
+        self.assertEqual(self.window.helpers_badge.text(), "Not updated")
+        self.assertEqual(self.window.helpers_badge.level, InfoLevel.WARNING)
+        self.assertEqual(self.window.dotfiles_badge.text(), "Not updated")
+        self.assertEqual(self.window.dotfiles_badge.level, InfoLevel.WARNING)
+
+    def test_status_not_installed(self):
+        mock_info = {
+            "git_installed": False,
+            "helpers_installed": False,
+            "dotfiles_installed": False,
+        }
+        self.window._on_status_ready(mock_info)
+        self.assertEqual(self.window.helpers_badge.text(), "Not installed")
+        self.assertEqual(self.window.helpers_badge.level, InfoLevel.ERROR)
+        self.assertEqual(self.window.dotfiles_badge.text(), "Not installed")
+        self.assertEqual(self.window.dotfiles_badge.level, InfoLevel.ERROR)
 
     def test_tasks_loaded_callback(self):
         tasks = ["win_task_a", "ubu_task_b", "my_task_c"]
@@ -132,19 +176,20 @@ class TestGui(unittest.TestCase):
 
     def test_run_methods_delegation(self):
         executed = []
-        self.window.execute_task = executed.append
+        with patch.object(
+            self.window, "execute_task", side_effect=executed.append
+        ):
+            self.window.task_selector.addItem("win_test")
+            self.window.run_task()
+            self.assertEqual(executed, ["win_test"])
 
-        self.window.task_selector.addItem("win_test")
-        self.window.run_task()
-        self.assertEqual(executed, ["win_test"])
+            self.window.my_task_selector.addItem("my_test")
+            self.window.run_my_task()
+            self.assertEqual(executed, ["win_test", "my_test"])
 
-        self.window.my_task_selector.addItem("my_test")
-        self.window.run_my_task()
-        self.assertEqual(executed, ["win_test", "my_test"])
-
-        self.window.recent_task_selector.addItem("recent_test")
-        self.window.run_recent_task()
-        self.assertEqual(executed, ["win_test", "my_test", "recent_test"])
+            self.window.recent_task_selector.addItem("recent_test")
+            self.window.run_recent_task()
+            self.assertEqual(executed, ["win_test", "my_test", "recent_test"])
 
     def test_command_worker_execution(self):
         worker = CommandWorker(sys.executable, ["-c", "print('worker_test_line')"])
