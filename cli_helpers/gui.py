@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import sys
 import re
@@ -27,6 +28,7 @@ from PyQt5.QtCore import (
     pyqtSignal,
     QTimer,
     qInstallMessageHandler,
+    QSettings,
 )
 from PyQt5.QtWidgets import (
     QApplication,
@@ -270,7 +272,7 @@ class StatusCheckWorker(QThread):
 class MainWindow(FramelessWindow):
     def __init__(self):
         super().__init__()
-        self.resize(620, 820)
+        self.resize(620, 800)
 
         self._active_worker = None
         self._cached_ps_exe = None
@@ -409,15 +411,52 @@ class MainWindow(FramelessWindow):
         tasks_layout.setSpacing(10)
 
         tasks_header = QHBoxLayout()
-        self.tasks_title = SubtitleLabel("Automation Tasks")
+        self.tasks_title = SubtitleLabel("Run")
+        self.btn_clear_recent = PushButton("Clear Recent", self, FluentIcon.DELETE)
+        self.btn_clear_recent.clicked.connect(self.clear_recent_tasks)
         self.btn_reload_tasks = PushButton("Reload Tasks", self, FluentIcon.SYNC)
         self.btn_reload_tasks.clicked.connect(self.initialize_tasks)
         tasks_header.addWidget(self.tasks_title)
         tasks_header.addStretch()
+        tasks_header.addWidget(self.btn_clear_recent)
         tasks_header.addWidget(self.btn_reload_tasks)
         tasks_layout.addLayout(tasks_header)
 
+        my_row = QHBoxLayout()
+        my_label = BodyLabel("My helpers:")
+        my_label.setFixedWidth(100)
+        self.my_task_selector = ComboBox()
+        self.my_task_selector.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Fixed
+        )
+        self.my_task_selector.setPlaceholderText("No my_ helpers found")
+        self.btn_run_my_task = PushButton("Run", self, FluentIcon.PLAY)
+        self.btn_run_my_task.setFixedWidth(135)
+        self.btn_run_my_task.clicked.connect(self.run_my_task)
+        my_row.addWidget(my_label)
+        my_row.addWidget(self.my_task_selector)
+        my_row.addWidget(self.btn_run_my_task)
+        tasks_layout.addLayout(my_row)
+
+        recent_row = QHBoxLayout()
+        recent_label = BodyLabel("Recent:")
+        recent_label.setFixedWidth(100)
+        self.recent_task_selector = ComboBox()
+        self.recent_task_selector.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Fixed
+        )
+        self.recent_task_selector.setPlaceholderText("No recent tasks")
+        self.btn_run_recent_task = PushButton("Run", self, FluentIcon.PLAY)
+        self.btn_run_recent_task.setFixedWidth(135)
+        self.btn_run_recent_task.clicked.connect(self.run_recent_task)
+        recent_row.addWidget(recent_label)
+        recent_row.addWidget(self.recent_task_selector)
+        recent_row.addWidget(self.btn_run_recent_task)
+        tasks_layout.addLayout(recent_row)
+
         task_selector_row = QHBoxLayout()
+        task_label = BodyLabel("All tasks:")
+        task_label.setFixedWidth(100)
         self.task_selector = ComboBox()
         self.task_selector.setSizePolicy(
             QSizePolicy.Expanding, QSizePolicy.Fixed
@@ -425,6 +464,7 @@ class MainWindow(FramelessWindow):
         self.btn_run_task = PrimaryPushButton("Run Task", self, FluentIcon.PLAY)
         self.btn_run_task.setFixedWidth(135)
         self.btn_run_task.clicked.connect(self.run_task)
+        task_selector_row.addWidget(task_label)
         task_selector_row.addWidget(self.task_selector)
         task_selector_row.addWidget(self.btn_run_task)
         tasks_layout.addLayout(task_selector_row)
@@ -480,6 +520,7 @@ class MainWindow(FramelessWindow):
         self.layout().setContentsMargins(0, 48, 0, 0)
         self.layout().addWidget(root_widget)
         self.titleBar.raise_()
+        self._update_recent_selector()
 
     def set_busy(self, busy, status=None):
         self.progress_bar.setVisible(busy)
@@ -497,6 +538,15 @@ class MainWindow(FramelessWindow):
         self.btn_clone_dotfiles.setEnabled(not busy)
         self.btn_run_task.setEnabled(
             not busy and self.task_selector.count() > 0
+        )
+        self.btn_run_my_task.setEnabled(
+            not busy and self.my_task_selector.count() > 0
+        )
+        self.btn_run_recent_task.setEnabled(
+            not busy and self.recent_task_selector.count() > 0
+        )
+        self.btn_clear_recent.setEnabled(
+            not busy and self.recent_task_selector.count() > 0
         )
 
         if status:
@@ -541,6 +591,7 @@ class MainWindow(FramelessWindow):
         user_profile = str(Path.home())
         base_dir = os.path.dirname(os.path.abspath(__file__))
         candidates = [
+            base_dir,
             os.path.join(user_profile, "src", "cli-helpers"),
             os.path.join(user_profile, "src", "dotfiles", "cli-helpers"),
             os.path.abspath(os.path.join(base_dir, "..")),
@@ -556,6 +607,7 @@ class MainWindow(FramelessWindow):
         base_dir = os.path.dirname(os.path.abspath(__file__))
         candidates = [
             os.path.join(user_profile, "src", "dotfiles"),
+            os.path.abspath(os.path.join(base_dir, "..")),
             os.path.abspath(os.path.join(base_dir, "..", "..")),
             os.path.abspath(os.path.join(base_dir, "..", "..", "..")),
         ]
@@ -644,7 +696,16 @@ class MainWindow(FramelessWindow):
         else:
             self.btn_run_task.setEnabled(False)
 
-        self.add_output(f"Loaded {len(tasks)} profile tasks.")
+        my_tasks = [t for t in tasks if t.startswith("my_")]
+        self.my_task_selector.clear()
+        if my_tasks:
+            self.my_task_selector.addItems(my_tasks)
+            self.my_task_selector.setCurrentIndex(0)
+            self.btn_run_my_task.setEnabled(True)
+        else:
+            self.btn_run_my_task.setEnabled(False)
+
+        self.add_output(f"Loaded {len(tasks)} profile tasks ({len(my_tasks)} my_ helpers).")
         self.set_busy(False, "Ready")
 
     def refresh_all(self):
@@ -751,10 +812,75 @@ class MainWindow(FramelessWindow):
                 on_success_msg=f"dotfiles installed at {target_dir}",
             )
 
+    def _load_recent_tasks(self):
+        try:
+            settings = QSettings("cli-helpers", "gui")
+            val = settings.value("recent_tasks", "[]")
+            if isinstance(val, str):
+                tasks = json.loads(val)
+            elif isinstance(val, list):
+                tasks = val
+            else:
+                tasks = []
+            return [t for t in tasks if isinstance(t, str) and t.strip()]
+        except Exception:
+            return []
+
+    def _save_recent_tasks(self, tasks):
+        try:
+            settings = QSettings("cli-helpers", "gui")
+            settings.setValue("recent_tasks", json.dumps(tasks))
+        except Exception:
+            pass
+
+    def add_recent_task(self, task_name):
+        if not task_name:
+            return
+        tasks = self._load_recent_tasks()
+        if task_name in tasks:
+            tasks.remove(task_name)
+        tasks.insert(0, task_name)
+        tasks = tasks[:15]
+        self._save_recent_tasks(tasks)
+        self._update_recent_selector(tasks)
+
+    def clear_recent_tasks(self):
+        self._save_recent_tasks([])
+        self._update_recent_selector([])
+
+    def _update_recent_selector(self, tasks=None):
+        if tasks is None:
+            tasks = self._load_recent_tasks()
+        self.recent_task_selector.clear()
+        if tasks:
+            self.recent_task_selector.addItems(tasks)
+            self.recent_task_selector.setCurrentIndex(0)
+            is_busy = bool(
+                hasattr(self, "progress_bar") and self.progress_bar.isVisible()
+            )
+            self.btn_run_recent_task.setEnabled(not is_busy)
+            self.btn_clear_recent.setEnabled(not is_busy)
+        else:
+            self.btn_run_recent_task.setEnabled(False)
+            self.btn_clear_recent.setEnabled(False)
+
     def run_task(self):
         selected_task = self.task_selector.currentText().strip()
+        self.execute_task(selected_task)
+
+    def run_my_task(self):
+        selected_task = self.my_task_selector.currentText().strip()
+        self.execute_task(selected_task)
+
+    def run_recent_task(self):
+        selected_task = self.recent_task_selector.currentText().strip()
+        self.execute_task(selected_task)
+
+    def execute_task(self, selected_task):
         if not selected_task:
             return
+
+        self.add_recent_task(selected_task)
 
         self.add_output(f">>> Running {selected_task}...")
         helpers_path = self.get_cli_helpers_path()
@@ -817,7 +943,7 @@ class MainWindow(FramelessWindow):
         self.titleBar.raise_()
 
 
-if __name__ == "__main__":
+def main():
     signal.signal(signal.SIGINT, lambda *_: QApplication.quit())
     app = QApplication(sys.argv)
 
@@ -833,3 +959,7 @@ if __name__ == "__main__":
         sys.exit(app.exec_())
     except KeyboardInterrupt:
         sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

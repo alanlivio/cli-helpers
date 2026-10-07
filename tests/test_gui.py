@@ -11,20 +11,12 @@ root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-try:
-    from gui.gui import (
-        MainWindow,
-        CommandWorker,
-        StatusCheckWorker,
-        TaskLoaderWorker,
-    )
-except ModuleNotFoundError:
-    from gui import (
-        MainWindow,
-        CommandWorker,
-        StatusCheckWorker,
-        TaskLoaderWorker,
-    )
+from cli_helpers.gui import (
+    MainWindow,
+    CommandWorker,
+    StatusCheckWorker,
+    TaskLoaderWorker,
+)
 
 
 class TestGui(unittest.TestCase):
@@ -36,13 +28,14 @@ class TestGui(unittest.TestCase):
         self.window = MainWindow()
 
     def tearDown(self):
+        self.window.clear_recent_tasks()
         self.window.close()
 
     def test_window_properties(self):
         self.assertEqual(self.window.windowTitle(), "cli-helpers GUI")
         self.assertEqual(self.window.title_bar.titleLabel.text(), "cli-helpers GUI")
         self.assertEqual(self.window.setup_title.text(), "Setup")
-        self.assertEqual(self.window.tasks_title.text(), "Automation Tasks")
+        self.assertEqual(self.window.tasks_title.text(), "Run")
         self.assertEqual(self.window.output_title.text(), "Output log")
 
     def test_path_discovery(self):
@@ -72,6 +65,8 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.status_label.text(), "Working...")
         self.assertFalse(self.window.btn_refresh_all.isEnabled())
         self.assertFalse(self.window.btn_reload_tasks.isEnabled())
+        self.assertFalse(self.window.btn_run_my_task.isEnabled())
+        self.assertFalse(self.window.btn_run_recent_task.isEnabled())
 
         self.window.set_busy(False, "Done")
         self.assertEqual(self.window.status_label.text(), "Done")
@@ -101,9 +96,55 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.task_selector.itemText(0), "win_task_a")
         self.assertTrue(self.window.btn_run_task.isEnabled())
 
+        self.assertEqual(self.window.my_task_selector.count(), 1)
+        self.assertEqual(self.window.my_task_selector.itemText(0), "my_task_c")
+        self.assertTrue(self.window.btn_run_my_task.isEnabled())
+
         self.window._on_tasks_loaded([])
         self.assertEqual(self.window.task_selector.count(), 0)
         self.assertFalse(self.window.btn_run_task.isEnabled())
+        self.assertEqual(self.window.my_task_selector.count(), 0)
+        self.assertFalse(self.window.btn_run_my_task.isEnabled())
+
+    def test_recent_tasks(self):
+        self.window.clear_recent_tasks()
+        self.assertEqual(self.window.recent_task_selector.count(), 0)
+        self.assertFalse(self.window.btn_run_recent_task.isEnabled())
+
+        self.window.add_recent_task("my_task_1")
+        self.assertEqual(self.window.recent_task_selector.count(), 1)
+        self.assertEqual(self.window.recent_task_selector.currentText(), "my_task_1")
+        self.assertTrue(self.window.btn_run_recent_task.isEnabled())
+
+        self.window.add_recent_task("win_task_2")
+        self.assertEqual(self.window.recent_task_selector.count(), 2)
+        self.assertEqual(self.window.recent_task_selector.itemText(0), "win_task_2")
+        self.assertEqual(self.window.recent_task_selector.itemText(1), "my_task_1")
+
+        self.window.add_recent_task("my_task_1")
+        self.assertEqual(self.window.recent_task_selector.count(), 2)
+        self.assertEqual(self.window.recent_task_selector.itemText(0), "my_task_1")
+        self.assertEqual(self.window.recent_task_selector.itemText(1), "win_task_2")
+
+        self.window.clear_recent_tasks()
+        self.assertEqual(self.window.recent_task_selector.count(), 0)
+        self.assertFalse(self.window.btn_run_recent_task.isEnabled())
+
+    def test_run_methods_delegation(self):
+        executed = []
+        self.window.execute_task = executed.append
+
+        self.window.task_selector.addItem("win_test")
+        self.window.run_task()
+        self.assertEqual(executed, ["win_test"])
+
+        self.window.my_task_selector.addItem("my_test")
+        self.window.run_my_task()
+        self.assertEqual(executed, ["win_test", "my_test"])
+
+        self.window.recent_task_selector.addItem("recent_test")
+        self.window.run_recent_task()
+        self.assertEqual(executed, ["win_test", "my_test", "recent_test"])
 
     def test_command_worker_execution(self):
         worker = CommandWorker(sys.executable, ["-c", "print('worker_test_line')"])
