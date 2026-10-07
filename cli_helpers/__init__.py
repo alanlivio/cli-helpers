@@ -1,17 +1,21 @@
 from .gui import (
     MainWindow,
-    CommandWorker,
-    StatusCheckWorker,
-    TaskLoaderWorker,
     main,
+)
+from .workers import (
+    HelperWorker,
+    HelperDiscoveryWorker,
+    StatusCheckWorker,
+    build_helper_command,
 )
 from .version import __version__
 
 __all__ = [
     "MainWindow",
-    "CommandWorker",
+    "HelperWorker",
+    "HelperDiscoveryWorker",
     "StatusCheckWorker",
-    "TaskLoaderWorker",
+    "build_helper_command",
     "main",
     "__version__",
 ]

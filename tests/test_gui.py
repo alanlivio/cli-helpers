@@ -15,9 +15,10 @@ if str(root_dir) not in sys.path:
 from qfluentwidgets import InfoLevel
 from cli_helpers.gui import (
     MainWindow,
-    CommandWorker,
+    HelperWorker,
     StatusCheckWorker,
-    TaskLoaderWorker,
+    HelperDiscoveryWorker,
+    build_helper_command,
 )
 
 
@@ -27,11 +28,20 @@ class TestGui(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def setUp(self):
-        self.window = MainWindow()
+        self.window = MainWindow(refresh=False)
 
     def tearDown(self):
         self.window.clear_recent_tasks()
         self.window.close()
+        for worker in [
+            getattr(self.window, "_active_worker", None),
+            getattr(self.window, "_status_worker", None),
+            getattr(self.window, "_helper_worker", None),
+            getattr(self.window, "_task_worker", None),
+        ]:
+            if worker and worker.isRunning():
+                worker.wait(100)
+        self.app.processEvents()
 
     def test_window_properties(self):
         self.assertEqual(self.window.windowTitle(), "cli-helpers GUI")
@@ -192,7 +202,7 @@ class TestGui(unittest.TestCase):
             self.assertEqual(executed, ["win_test", "my_test", "recent_test"])
 
     def test_command_worker_execution(self):
-        worker = CommandWorker(sys.executable, ["-c", "print('worker_test_line')"])
+        worker = HelperWorker(sys.executable, ["-c", "print('worker_test_line')"])
         received_lines = []
         exit_codes = []
 
@@ -205,6 +215,53 @@ class TestGui(unittest.TestCase):
 
         self.assertIn("worker_test_line", received_lines)
         self.assertEqual(exit_codes, [0])
+
+    def test_command_worker_parse_tasks(self):
+        worker = HelperWorker(
+            sys.executable,
+            ["-c", "print('win_foo\\nmy_bar')"],
+            parse_helpers=True,
+        )
+        loaded = []
+        worker.helpers_loaded.connect(loaded.append)
+        worker.start()
+        worker.wait(5000)
+        self.app.processEvents()
+        self.assertEqual(loaded, [["win_foo", "my_bar"]])
+
+    def test_task_loader_worker_powershell(self):
+        worker = HelperDiscoveryWorker(shell_exe="powershell.exe")
+        self.assertEqual(worker.shell_type, "powershell")
+        self.assertIn("-NoProfile", worker.args)
+        self.assertIn("-ExecutionPolicy", worker.args)
+        self.assertIn("-Command", worker.args)
+        self.assertTrue(any("Get-Command" in arg for arg in worker.args))
+
+    def test_task_loader_worker_bash(self):
+        worker = HelperDiscoveryWorker(shell_exe="bash")
+        self.assertEqual(worker.shell_type, "bash")
+        self.assertEqual(worker.args[0], "-c")
+        self.assertTrue(any("compgen" in arg for arg in worker.args))
+
+    def test_task_loader_worker_custom_script(self):
+        worker_bash = HelperDiscoveryWorker("bash", "echo custom_task")
+        self.assertEqual(worker_bash.shell_type, "bash")
+        self.assertEqual(worker_bash.args, ["-c", "echo custom_task"])
+
+        worker_ps = HelperDiscoveryWorker("powershell.exe", 'Write-Host "test"')
+        self.assertEqual(worker_ps.shell_type, "powershell")
+        self.assertIn('Write-Host `"test`"', worker_ps.args[-1])
+
+    def test_build_helper_command(self):
+        bash_cmd, bash_args = build_helper_command("my_task", shell_exe="bash")
+        self.assertEqual(bash_cmd, "bash")
+        self.assertEqual(bash_args[0], "-c")
+        self.assertTrue(bash_args[1].endswith("my_task"))
+
+        ps_cmd, ps_args = build_helper_command("win_task", shell_exe="powershell.exe")
+        self.assertEqual(ps_cmd, "powershell.exe")
+        self.assertIn("-Command", ps_args)
+        self.assertTrue(ps_args[-1].endswith("& win_task"))
 
 
 if __name__ == "__main__":

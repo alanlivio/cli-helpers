@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import shutil
 import sys
 import re
 import signal
@@ -24,8 +25,6 @@ except Exception:
 
 from PyQt5.QtCore import (
     Qt,
-    QThread,
-    pyqtSignal,
     QTimer,
     qInstallMessageHandler,
     QSettings,
@@ -87,269 +86,23 @@ qInstallMessageHandler(_qt_message_handler)
 
 
 
-class CommandWorker(QThread):
-    output_line = pyqtSignal(str)
-    finished = pyqtSignal(int)
-
-    def __init__(self, command, args, cwd=None):
-        super().__init__()
-        self.command = command
-        self.args = args
-        self.cwd = cwd
-
-    def run(self):
-        try:
-            cmd = [self.command] + self.args
-            creation_flags = (
-                subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-            )
-            process = subprocess.Popen(
-                cmd,
-                cwd=self.cwd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                bufsize=1,
-                creationflags=creation_flags,
-            )
-            if process.stdout:
-                for line in iter(process.stdout.readline, ""):
-                    if line:
-                        self.output_line.emit(line.rstrip("\r\n"))
-                process.stdout.close()
-            ret = process.wait()
-            self.finished.emit(ret)
-        except Exception as e:
-            self.output_line.emit(f"Process error: {e}")
-            self.finished.emit(-1)
-
-
-class TaskLoaderWorker(QThread):
-    tasks_loaded = pyqtSignal(list)
-    output_message = pyqtSignal(str)
-
-    def __init__(self, powershell_exe, script_command):
-        super().__init__()
-        self.powershell_exe = powershell_exe
-        self.script_command = script_command
-
-    def run(self):
-        try:
-            creation_flags = (
-                subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-            )
-            escaped_cmd = self.script_command.replace('"', '`"')
-            res = subprocess.run(
-                [
-                    self.powershell_exe,
-                    "-NoProfile",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-Command",
-                    escaped_cmd,
-                ],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                creationflags=creation_flags,
-            )
-            tasks = []
-            if res.returncode == 0 and res.stdout:
-                for line in res.stdout.splitlines():
-                    trimmed = line.strip()
-                    if trimmed:
-                        tasks.append(trimmed)
-            self.tasks_loaded.emit(tasks)
-        except Exception as e:
-            self.output_message.emit(f"Task discovery error: {e}")
-            self.tasks_loaded.emit([])
-
-
-class StatusCheckWorker(QThread):
-    status_ready = pyqtSignal(dict)
-
-    def __init__(self, helpers_path, dotfiles_path):
-        super().__init__()
-        self.helpers_path = helpers_path
-        self.dotfiles_path = dotfiles_path
-
-    def _is_repo_updated(self, repo_path, creation_flags):
-        if not repo_path or not os.path.isdir(repo_path):
-            return True
-        try:
-            subprocess.run(
-                ["git", "-C", repo_path, "fetch", "origin", "main"],
-                capture_output=True,
-                timeout=4,
-                creationflags=creation_flags,
-            )
-        except Exception:
-            pass
-
-        for ref in ["HEAD..@{u}", "HEAD..origin/main"]:
-            try:
-                res = subprocess.run(
-                    ["git", "-C", repo_path, "rev-list", "--count", ref],
-                    capture_output=True,
-                    text=True,
-                    timeout=2,
-                    creationflags=creation_flags,
-                )
-                if res.returncode == 0 and res.stdout.strip().isdigit():
-                    count = int(res.stdout.strip())
-                    if count > 0:
-                        return False
-            except Exception:
-                pass
-        return True
-
-    def run(self):
-        user_profile = str(Path.home())
-        result = {
-            "git_installed": False,
-            "git_version": "",
-            "helpers_installed": bool(
-                self.helpers_path
-                and os.path.isfile(os.path.join(self.helpers_path, "init.ps1"))
-            ),
-            "helpers_updated": True,
-            "helpers_path": self.helpers_path or os.path.join(user_profile, "src", "cli-helpers"),
-            "helpers_user": "",
-            "dotfiles_installed": bool(
-                self.dotfiles_path
-                and os.path.isfile(os.path.join(self.dotfiles_path, "init.ps1"))
-            ),
-            "dotfiles_updated": True,
-            "dotfiles_path": self.dotfiles_path or os.path.join(user_profile, "src", "dotfiles"),
-            "dotfiles_user": "",
-        }
-
-        creation_flags = (
-            subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-        )
-        try:
-            res = subprocess.run(
-                ["git", "--version"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                creationflags=creation_flags,
-            )
-            if res.returncode == 0 and res.stdout:
-                result["git_installed"] = True
-                raw = res.stdout.strip()
-                result["git_version"] = re.sub(
-                    r"^git version\s*", "v", raw, flags=re.IGNORECASE
-                )
-        except Exception:
-            pass
-
-        if self.helpers_path and os.path.isdir(self.helpers_path):
-            try:
-                res = subprocess.run(
-                    [
-                        "git",
-                        "-C",
-                        self.helpers_path,
-                        "config",
-                        "--get",
-                        "remote.origin.url",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    creationflags=creation_flags,
-                )
-                if res.returncode == 0 and res.stdout:
-                    match = re.search(r"github\.com[:/]([^/]+)", res.stdout)
-                    if match:
-                        result["helpers_user"] = match.group(1).replace(
-                            ".git", ""
-                        ).strip()
-            except Exception:
-                pass
-
-        if not result["helpers_user"]:
-            result["helpers_user"] = "alanlivio"
-
-        if self.dotfiles_path and os.path.isdir(self.dotfiles_path):
-            try:
-                res = subprocess.run(
-                    [
-                        "git",
-                        "-C",
-                        self.dotfiles_path,
-                        "config",
-                        "--get",
-                        "remote.origin.url",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    creationflags=creation_flags,
-                )
-                if res.returncode == 0 and res.stdout:
-                    match = re.search(r"github\.com[:/]([^/]+)", res.stdout)
-                    if match:
-                        result["dotfiles_user"] = match.group(1).replace(
-                            ".git", ""
-                        ).strip()
-            except Exception:
-                pass
-
-            if not result["dotfiles_user"]:
-                gitconfig_path = os.path.join(self.dotfiles_path, ".gitconfig")
-                if os.path.isfile(gitconfig_path):
-                    try:
-                        res = subprocess.run(
-                            [
-                                "git",
-                                "config",
-                                "--file",
-                                gitconfig_path,
-                                "--get",
-                                "github.user",
-                            ],
-                            capture_output=True,
-                            text=True,
-                            encoding="utf-8",
-                            errors="replace",
-                            creationflags=creation_flags,
-                        )
-                        if (
-                            res.returncode == 0
-                            and res.stdout
-                            and "error:" not in res.stdout
-                        ):
-                            result["dotfiles_user"] = res.stdout.strip()
-                    except Exception:
-                        pass
-
-        if result["helpers_installed"]:
-            result["helpers_updated"] = self._is_repo_updated(
-                self.helpers_path, creation_flags
-            )
-
-        if result["dotfiles_installed"]:
-            result["dotfiles_updated"] = self._is_repo_updated(
-                self.dotfiles_path, creation_flags
-            )
-
-        self.status_ready.emit(result)
+from .workers import (
+    HelperWorker,
+    HelperDiscoveryWorker,
+    StatusCheckWorker,
+    build_helper_command,
+)
 
 
 class MainWindow(FramelessWindow):
-    def __init__(self):
+    def __init__(self, refresh=True):
         super().__init__()
         self.resize(720, 800)
 
         self._active_worker = None
+        self._status_worker = None
+        self._helper_worker = None
+        self._task_worker = None
         self._cached_ps_exe = None
 
         palette = self.palette()
@@ -404,7 +157,8 @@ class MainWindow(FramelessWindow):
 
         self._init_ui()
         self._center_window()
-        self.refresh_all()
+        if refresh:
+            self.refresh_all()
 
     def _center_window(self):
         screen = QApplication.primaryScreen()
@@ -679,6 +433,11 @@ class MainWindow(FramelessWindow):
         self._cached_ps_exe = "powershell.exe"
         return self._cached_ps_exe
 
+    def get_shell_executable(self):
+        if sys.platform != "win32":
+            return shutil.which("bash") or "/bin/bash" or "bash"
+        return self.get_powershell_executable()
+
     def get_cli_helpers_path(self):
         user_profile = str(Path.home())
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -690,7 +449,10 @@ class MainWindow(FramelessWindow):
             os.path.abspath(os.path.join(base_dir, "..", "..")),
         ]
         for p in candidates:
-            if os.path.isdir(p) and os.path.isfile(os.path.join(p, "init.ps1")):
+            if os.path.isdir(p) and (
+                os.path.isfile(os.path.join(p, "init.ps1"))
+                or os.path.isfile(os.path.join(p, "init.sh"))
+            ):
                 return p
         return None
 
@@ -704,7 +466,10 @@ class MainWindow(FramelessWindow):
             os.path.abspath(os.path.join(base_dir, "..", "..", "..")),
         ]
         for p in candidates:
-            if os.path.isdir(p) and os.path.isfile(os.path.join(p, "init.ps1")):
+            if os.path.isdir(p) and (
+                os.path.isfile(os.path.join(p, "init.ps1"))
+                or os.path.isfile(os.path.join(p, "init.sh"))
+            ):
                 return p
         return None
 
@@ -772,32 +537,16 @@ class MainWindow(FramelessWindow):
         self.set_busy(True, "Loading profile tasks...")
         helpers_path = self.get_cli_helpers_path()
         dotfiles_path = self.get_dotfiles_path()
-
-        script_parts = []
-        if helpers_path:
-            init_helpers = os.path.join(helpers_path, "init.ps1")
-            if os.path.isfile(init_helpers):
-                script_parts.append(
-                    f"if (Test-Path '{init_helpers}') {{ . '{init_helpers}' }};"
-                )
-
-        if dotfiles_path:
-            init_dotfiles = os.path.join(dotfiles_path, "init.ps1")
-            if os.path.isfile(init_dotfiles):
-                script_parts.append(
-                    f"if (Test-Path '{init_dotfiles}') {{ . '{init_dotfiles}' }};"
-                )
-
-        script_parts.append(
-            "Get-Command -CommandType Function, Alias | Where-Object { $_.Name -match '^(win_|ubu_|my_)' } | Select-Object -ExpandProperty Name | Sort-Object -Unique"
+        shell_exe = self.get_shell_executable()
+        self._helper_worker = HelperDiscoveryWorker(
+            shell_exe=shell_exe,
+            helpers_path=helpers_path,
+            dotfiles_path=dotfiles_path,
         )
-        full_script = " ".join(script_parts)
-
-        ps_exe = self.get_powershell_executable()
-        self._task_worker = TaskLoaderWorker(ps_exe, full_script)
-        self._task_worker.tasks_loaded.connect(self._on_tasks_loaded)
-        self._task_worker.output_message.connect(self.add_output)
-        self._task_worker.start()
+        self._task_worker = self._helper_worker
+        self._helper_worker.helpers_loaded.connect(self._on_tasks_loaded)
+        self._helper_worker.output_message.connect(self.add_output)
+        self._helper_worker.start()
 
     def _on_tasks_loaded(self, tasks):
         self.task_selector.clear()
@@ -827,7 +576,7 @@ class MainWindow(FramelessWindow):
 
     def run_worker_command(self, cmd, args, cwd=None, status_msg=None, on_success_msg=None):
         self.set_busy(True, status_msg or "Executing command...")
-        self._active_worker = CommandWorker(cmd, args, cwd)
+        self._active_worker = HelperWorker(cmd, args, cwd)
         self._active_worker.output_line.connect(self.add_output)
 
         def on_finished(exit_code):
@@ -1009,37 +758,17 @@ class MainWindow(FramelessWindow):
         self.add_output(f">>> Running {selected_task}...")
         helpers_path = self.get_cli_helpers_path()
         dotfiles_path = self.get_dotfiles_path()
+        shell_exe = self.get_shell_executable()
 
-        script_parts = []
-        if helpers_path:
-            init_helpers = os.path.join(helpers_path, "init.ps1")
-            if os.path.isfile(init_helpers):
-                script_parts.append(
-                    f"if (Test-Path '{init_helpers}') {{ . '{init_helpers}' }};"
-                )
-
-        if dotfiles_path:
-            init_dotfiles = os.path.join(dotfiles_path, "init.ps1")
-            if os.path.isfile(init_dotfiles):
-                script_parts.append(
-                    f"if (Test-Path '{init_dotfiles}') {{ . '{init_dotfiles}' }};"
-                )
-
-        script_parts.append(f"& {selected_task}")
-        full_script = " ".join(script_parts)
-        escaped_script = full_script.replace('"', '`"')
-
-        ps_exe = self.get_powershell_executable()
-        args = [
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            escaped_script,
-        ]
+        cmd, args = build_helper_command(
+            selected_task,
+            shell_exe=shell_exe,
+            helpers_path=helpers_path,
+            dotfiles_path=dotfiles_path,
+        )
 
         self.set_busy(True, f"Executing: {selected_task}...")
-        self._active_worker = CommandWorker(ps_exe, args)
+        self._active_worker = HelperWorker(cmd, args)
         self._active_worker.output_line.connect(self.add_output)
 
         def on_task_finished(exit_code):
@@ -1057,9 +786,14 @@ class MainWindow(FramelessWindow):
 
 
     def closeEvent(self, a0):
-        if self._active_worker and self._active_worker.isRunning():
-            self._active_worker.terminate()
-            self._active_worker.wait(500)
+        for worker in [
+            self._active_worker,
+            self._status_worker,
+            self._helper_worker,
+            self._task_worker,
+        ]:
+            if worker and worker.isRunning():
+                worker.wait(100)
         super().closeEvent(a0)
 
     def resizeEvent(self, e):
