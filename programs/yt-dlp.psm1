@@ -3,7 +3,7 @@ function yt_dlp__base_args {
         "--no-warnings"
         "--windows-filenames"
         "--output"
-        "%(title)s.%(ext)s"
+        "%(title)s [%(id)s].%(ext)s"
     )
 }
 
@@ -12,6 +12,8 @@ function yt_dlp__batch_args {
         "--download-archive"
         ".downloaded.txt"
         "--no-playlist"
+        "--sleep-requests"
+        "1.5"
     )
 }
 
@@ -80,8 +82,8 @@ function yt_dlp_video_480_from_url_or_list_url {
     if ($PSBoundParameters.Keys.Count -lt 1) { log_error "Usage: $($MyInvocation.MyCommand.Name) <url to video or list>"; return }
     $yt_dlt_args = @(
         (yt_dlp__base_args)
-        "-f"
-        "best[height<=480]"
+        "-S"
+        "res:480"
         "--recode-video"
         "mp4"
         $url
@@ -95,8 +97,8 @@ function yt_dlp_video_480_from_urls_at_txt {
     $yt_dlt_args = @(
         (yt_dlp__base_args)
         (yt_dlp__batch_args)
-        "-f"
-        "best[height<=480]"
+        "-S"
+        "res:480"
         "--recode-video"
         "mp4"
         "--batch-file"
