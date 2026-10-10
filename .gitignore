@@ -35,6 +35,7 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+version_info.txt
 
 # Installer logs
 pip-log.txt
@@ -174,3 +175,5 @@ poetry.toml
 pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python
+
+cli_helpers/resources/

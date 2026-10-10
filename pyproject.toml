@@ -15,10 +15,8 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = [
-    "build",
     "pyinstaller",
-    "twine",
-    "wheel",
+    "pytest",
 ]
 
 [project.scripts]
@@ -27,6 +25,9 @@ cli-helpers = "cli_helpers.gui:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["cli_helpers*"]
+
+[tool.setuptools.package-data]
+cli_helpers = ["resources/*"]
 
 [tool.setuptools.dynamic]
 version = { attr = "cli_helpers.version.__version__" }

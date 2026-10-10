@@ -12,10 +12,16 @@ make deps
 make run
 ```
 
-## Building Wheel
+## Building Executable
 
 ```powershell
-make wheel
+make build
+```
+
+## Building WinGet Package
+
+```powershell
+make package
 ```
 
 ## Running Tests

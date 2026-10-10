@@ -44,8 +44,8 @@ class TestGui(unittest.TestCase):
         self.app.processEvents()
 
     def test_window_properties(self):
-        self.assertEqual(self.window.windowTitle(), "cli-helpers GUI")
-        self.assertEqual(self.window.title_bar.titleLabel.text(), "cli-helpers GUI")
+        self.assertEqual(self.window.windowTitle(), "CLI Helpers")
+        self.assertEqual(self.window.title_bar.titleLabel.text(), "CLI Helpers")
         self.assertEqual(self.window.setup_title.text(), "Setup")
         self.assertEqual(self.window.tasks_title.text(), "Run")
         self.assertEqual(self.window.output_title.text(), "Output log")
@@ -266,6 +266,12 @@ class TestGui(unittest.TestCase):
         self.assertIn("-Command", ps_args)
         self.assertTrue(ps_args[-1].endswith("& win_task"))
 
+    def test_icon_loading(self):
+        from cli_helpers.gui import get_app_icon
+        icon = get_app_icon()
+        self.assertFalse(icon.isNull())
+
 
 if __name__ == "__main__":
     unittest.main()
+

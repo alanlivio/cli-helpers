@@ -1,7 +1,6 @@
 import io
 import json
 import os
-import shutil
 import sys
 import re
 import signal
@@ -19,7 +18,6 @@ from PySide6.QtCore import (
     QTimer,
     qInstallMessageHandler,
     QSettings,
-    QFileInfo,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -29,21 +27,26 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QLabel,
     QPlainTextEdit,
-    QFileIconProvider,
 )
 from PySide6.QtGui import QFont, QPalette, QColor, QIcon
 
 import fluentqt
 
 
-def get_python_icon():
-    try:
-        provider = QFileIconProvider()
-        icon = provider.icon(QFileInfo(sys.executable))
-        if not icon.isNull():
-            return icon
-    except Exception:
-        pass
+def get_resource_dir() -> Path:
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS) / "cli_helpers" / "resources"
+    return Path(__file__).resolve().parent / "resources"
+
+
+def get_app_icon() -> QIcon:
+    res_dir = get_resource_dir()
+    for name in ("icon.ico", "icon.png", "icon.svg"):
+        p = res_dir / name
+        if p.is_file():
+            icon = QIcon(str(p))
+            if not icon.isNull():
+                return icon
     return QIcon()
 
 
@@ -193,21 +196,27 @@ class InfoBadge(QLabel):
 
 
 class TitleLabel:
-    def __init__(self, wrapper):
+    def __init__(self, label_widget, wrapper):
+        self._lbl = label_widget
         self._wrapper = wrapper
 
     def text(self):
+        if self._lbl and hasattr(self._lbl, "text"):
+            return self._lbl.text()
         return self._wrapper._title
 
 
 class TitleBarWrapper:
-    def __init__(self, tb, title="cli-helpers GUI"):
+    def __init__(self, tb, title="CLI Helpers", label_widget=None):
         self._tb = tb
         self._title = title
-        self.titleLabel = TitleLabel(self)
+        self._label = label_widget
+        self.titleLabel = TitleLabel(label_widget, self)
 
     def setTitle(self, title):
         self._title = title
+        if self._label and hasattr(self._label, "setText"):
+            self._label.setText(title)
         if self._tb and hasattr(self._tb, "setWindowTitle"):
             self._tb.setWindowTitle(title)
 
@@ -260,18 +269,43 @@ class MainWindow(fluentqt.Window):
         self._cached_ps_exe = None
 
         setTheme(Theme.DARK)
-        self.setWindowTitle("cli-helpers GUI")
+        self.setWindowTitle("CLI Helpers")
 
         self.native_title_bar = self.titleBar()
-        if self.native_title_bar:
-            self.native_title_bar.setWindowTitle("cli-helpers GUI")
-        self.title_bar = TitleBarWrapper(self.native_title_bar, "cli-helpers GUI")
+        self.title_bar_container = None
+        self.title_label_widget = None
+        self.title_icon_widget = None
 
-        icon = get_python_icon()
+        icon = get_app_icon()
         if not icon.isNull():
             self.setWindowIcon(icon)
             if self.native_title_bar and hasattr(self.native_title_bar, "setWindowIcon"):
                 self.native_title_bar.setWindowIcon(icon)
+
+        if self.native_title_bar:
+            self.native_title_bar.setWindowTitle("CLI Helpers")
+            self.title_bar_container = QWidget(self.native_title_bar)
+            self.title_bar_container.setAttribute(Qt.WA_TransparentForMouseEvents)
+            self.title_bar_container.move(14, 0)
+            self.title_bar_container.setFixedHeight(36)
+
+            tb_layout = QHBoxLayout(self.title_bar_container)
+            tb_layout.setContentsMargins(0, 0, 0, 0)
+            tb_layout.setSpacing(8)
+            tb_layout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+            if not icon.isNull():
+                self.title_icon_widget = QLabel(self.title_bar_container)
+                self.title_icon_widget.setAttribute(Qt.WA_TransparentForMouseEvents)
+                self.title_icon_widget.setPixmap(icon.pixmap(16, 16))
+                tb_layout.addWidget(self.title_icon_widget)
+
+            self.title_label_widget = QLabel("CLI Helpers", self.title_bar_container)
+            self.title_label_widget.setAttribute(Qt.WA_TransparentForMouseEvents)
+            self.title_label_widget.setStyleSheet("font-size: 12px; font-weight: 500; color: #ffffff;")
+            tb_layout.addWidget(self.title_label_widget)
+
+        self.title_bar = TitleBarWrapper(self.native_title_bar, "CLI Helpers", self.title_label_widget)
 
         if sys.platform == "win32":
             try:
@@ -940,10 +974,19 @@ class MainWindow(fluentqt.Window):
 
 
 def main():
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("alanlivio.clihelpers.gui")
+        except Exception:
+            pass
+
     fluentqt.prepare_high_dpi_application()
     signal.signal(signal.SIGINT, lambda *_: QApplication.quit())
     app = QApplication(sys.argv)
-    icon = get_python_icon()
+    app.setApplicationName("CLI Helpers")
+    app.setApplicationDisplayName("CLI Helpers")
+    icon = get_app_icon()
     if not icon.isNull():
         app.setWindowIcon(icon)
     fluentqt.initialize_resources()
