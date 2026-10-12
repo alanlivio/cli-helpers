@@ -6,7 +6,7 @@ function git_clone_or_pull() {
     local dir=$basedir/${1##*/}
     if [[ -d $dir ]]; then
         (
-            cd "$dirb" 
+            cd "$dirb"
             log_msg "git pull at $dir"
             git pull -q
         )
@@ -17,17 +17,17 @@ function git_clone_or_pull() {
 
     fi
     if [[ -n $email ]]; then
-    (
-        cd $dir
-        git config user.email "$email"
-    )
+        (
+            cd $dir
+            git config user.email "$email"
+        )
     fi
 }
 
 function git_pull_recursive() {
     : ${1?"Usage: git_pull_recursive <folder>"}
     local folder=$1
-    if [[ ! -d $folder ]]; then return 1; fi;
+    if [[ ! -d $folder ]]; then return 1; fi
     local pulled=1
     for sub in "$folder" "$folder"/*; do
         if [[ -d "$sub/.git" ]]; then

@@ -290,10 +290,7 @@ function win_admin_enable_ssh() {
 # -- code -- 
 
 function code_install_extensions {
-    param(
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
-        [string[]]$extensions
-    )
+    param ( [Parameter(Mandatory = $true, ValueFromPipeline = $true)] [string[]]$extensions )
     $executable = if ($env:CODE_EXECUTABLE) { $env:CODE_EXECUTABLE } else { "code" }
     $installed = @(& $executable --list-extensions)
     foreach ($ext in $extensions) {
@@ -313,10 +310,8 @@ function code_install_extensions_from_txt {
 
 function code_wsl_auto {
     param(
-        [Parameter(Position = 0)]
-        [string]$folder_path = (Get-Location).ProviderPath,
-        [Parameter(ValueFromRemainingArguments = $true)]
-        [string[]]$extra_args
+        [Parameter(Position = 0)] [string]$folder_path = (Get-Location).ProviderPath,
+        [Parameter(ValueFromRemainingArguments = $true)] [string[]]$extra_args
     )
     if ([string]::IsNullOrWhiteSpace($folder_path)) {
         $folder_path = (Get-Location).ProviderPath
