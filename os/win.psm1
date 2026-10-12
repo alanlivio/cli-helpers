@@ -807,6 +807,44 @@ function win_onedrive_make_folder_avaliable() {
     }
 }
 
+function win_onedrive_ignore {
+    # https://zenn.dev/fjktkm/articles/97cc4677dc253a?locale=en#4.1.-procedure
+    param (
+        [Parameter(Mandatory = $true)][string]$source_path,
+        [switch]$no_restart
+    )
+    if (-not (Test-Path $source_path)) {
+        log_error "Source file '$source_path' does not exist."
+        return
+    }
+
+    $source_path = (Resolve-Path $source_path).Path
+    $settings_dir = "$env:LOCALAPPDATA\Microsoft\OneDrive\settings"
+    if (Test-Path $settings_dir) {
+        $target_dirs = Get-ChildItem -Path $settings_dir -Directory | Where-Object { $_.Name -match "^(Business\d*|Personal)$" }
+        foreach ($dir in $target_dirs) {
+            $link_path = Join-Path $dir.FullName "odignore.txt"
+            create_hlink $link_path $source_path
+        }
+    }
+
+    if (-not $no_restart) {
+        $od_exe = @(
+            "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe",
+            "$env:ProgramFiles\Microsoft OneDrive\OneDrive.exe",
+            "${env:ProgramFiles(x86)}\Microsoft OneDrive\OneDrive.exe"
+        ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+        if ($od_exe) {
+            if (Get-Process -Name OneDrive -ErrorAction SilentlyContinue) {
+                Start-Process $od_exe -ArgumentList "/shutdown" -Wait -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 2
+            }
+            Start-Process $od_exe -ArgumentList "/background"
+        }
+    }
+}
+
 
 # -- startmenu/desktop --
 
