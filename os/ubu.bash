@@ -197,7 +197,7 @@ function code_alias_to_auto_open_wsl() {
 # -- install --
 
 function ubu_install_latex() {
-    sudo apt install -y latexmk texlive-latex-extra texlive-fonts-extra texlive-extra-utils
+    sudo apt install -y latexmk texlive-latex-extra texlive-fonts-extra texlive-extra-utils texlive-xetex
 }
 
 function ubu_install_gh() {
