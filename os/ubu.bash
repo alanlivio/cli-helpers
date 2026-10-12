@@ -128,27 +128,33 @@ function user_as_sudoer_no_password() {
 # -- code --
 
 function code_install_extensions() {
-    local executable="${CODE_EXECUTABLE:-code}"
+    local executable
+    executable=$(find ~/.antigravity-ide-server/bin -name antigravity-ide-server -type f 2>/dev/null | head -n 1)
+    if [[ -z "$executable" ]]; then
+        executable=$(find ~/.vscode-server/bin -name code-server -type f 2>/dev/null | head -n 1)
+    fi
+    executable="${executable:-${CODE_EXECUTABLE:-code}}"
     local installed
     installed="$("$executable" --list-extensions 2>/dev/null)"
     for ext in "$@"; do
         if ! echo "$installed" | grep -qiFx "$ext"; then
-            "$executable" --install-extension "$ext"
+            "$executable" --install-extension "$ext" 2>/dev/null || true
         fi
     done
 }
 
 function code_install_extensions_from_txt() {
     local path="$1"
-    if [[ -f "$path" ]]; then
-        local extensions=()
-        while IFS= read -r line || [[ -n "$line" ]]; do
-            line="${line%%#*}"
-            line="$(echo "$line" | xargs)"
-            [[ -n "$line" ]] && extensions+=("$line")
-        done <"$path"
-        code_install_extensions "${extensions[@]}"
+    if [[ -z "$path" || ! -f "$path" ]]; then
+        return 1
     fi
+    local extensions=()
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%%#*}"
+        line="$(echo "$line" | xargs)"
+        [[ -n "$line" ]] && extensions+=("$line")
+    done <"$path"
+    code_install_extensions "${extensions[@]}"
 }
 
 function code_alias_to_auto_open_wsl() {
