@@ -1,13 +1,23 @@
 function wsl_install_docker_gpu() {
-    sudo apt update && sudo apt install -y docker.io docker-compose-v2
-    sudo usermod -aG docker $USER
-    sudo install -m 0755 -d /usr/share/keyrings
-    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor --yes -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-    curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list |
-        sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' |
-        sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list >/dev/null
-    sudo apt update && sudo apt install -y nvidia-container-toolkit
-    sudo nvidia-ctk runtime configure --runtime=docker
+    if ! type -p docker >/dev/null || ! docker compose version >/dev/null 2>&1; then
+        sudo apt remove -y docker.io docker-compose docker-compose-v2 2>/dev/null
+        sudo install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo tee /etc/apt/keyrings/docker.asc >/dev/null
+        sudo chmod a+r /etc/apt/keyrings/docker.asc
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" |
+            sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+        sudo apt update && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        sudo usermod -aG docker $USER
+    fi
+    if ! type -p nvidia-ctk >/dev/null; then
+        sudo install -m 0755 -d /usr/share/keyrings
+        curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor --yes -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+        curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list |
+            sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' |
+            sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list >/dev/null
+        sudo apt update && sudo apt install -y nvidia-container-toolkit
+        sudo nvidia-ctk runtime configure --runtime=docker
+    fi
     sudo systemctl enable --now docker 2>/dev/null || sudo service docker restart
 }
 
