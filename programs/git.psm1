@@ -51,24 +51,38 @@ function git_pull_recursive {
     return $pulled
 }
 
-function git_gitignore_types_list {
+function git_ignore_template_list {
     (Invoke-WebRequest -Uri "https://www.toptal.com/developers/gitignore/api/list" -UseBasicParsing).Content
 }
 
-function git_gitignore_types_add {
-    param(
-        [Parameter(Mandatory = $true, HelpMessage = "Usage: git_gitignore_type_add_current_folder <contexts,..>")]
-        [string]$types
-    )
-    $content = (Invoke-WebRequest -Uri "https://www.toptal.com/developers/gitignore/api/$types" -UseBasicParsing).Content
-    Add-Content -Path .gitignore -Value $content
+function _git_ignore_template_prepend {
+    param ( [Parameter(Mandatory = $true)] [string]$content )
+    if (-not $content) { return }
+    if (Test-Path .gitignore) {
+        $existing = Get-Content -Path .gitignore -Raw
+        if ($existing) {
+            Set-Content -Path .gitignore -Value "$($content.TrimEnd())`r`n`r`n$existing"
+            return
+        }
+    }
+    Set-Content -Path .gitignore -Value $content
 }
 
-function git_gitignore_types_add_vscode {
+function git_ignore_template_add {
+    param ( [Parameter(Mandatory = $true, HelpMessage = "Usage: git_ignore_template_add <templates,..>")] [string]$templates )
+    $content = (Invoke-WebRequest -Uri "https://www.toptal.com/developers/gitignore/api/$templates" -UseBasicParsing).Content
+    _git_ignore_template_prepend $content
+}
+
+function git_ignore_template_add_vscode {
     $content = (Invoke-WebRequest -Uri "https://www.toptal.com/developers/gitignore/api/visualstudiocode" -UseBasicParsing).Content
-    Add-Content -Path .gitignore -Value $content
+    _git_ignore_template_prepend $content
 }
 
+function git_ignore_template_add_common {
+    $content = (Invoke-WebRequest -Uri "https://www.toptal.com/developers/gitignore/api/visualstudiocode,python,node,c++,windows,macos" -UseBasicParsing).Content
+    _git_ignore_template_prepend $content
+}
 
 function git_branch_remove_local_and_remote {
     param ( [Parameter(Mandatory = $true)] [string]$branchname )

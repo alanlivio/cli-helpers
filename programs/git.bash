@@ -47,17 +47,41 @@ function git_pull_recursive() {
     return $pulled
 }
 
-function git_gitignore_types_list() {
+function git_ignore_template_list() {
     curl -L -s "https://www.gitignore.io/api/list"
 }
 
-function git_gitignore_types_add() {
-    : ${1?"Usage: ${FUNCNAME[0]} <type1,type2..>"}
-    curl -L -s "https://www.gitignore.io/api/$1" >>.gitignore
+function _git_ignore_template_prepend() {
+    local content="$1"
+    if [[ -z "$content" ]]; then
+        return 1
+    fi
+    if [[ -s .gitignore ]]; then
+        local existing
+        existing=$(cat .gitignore)
+        printf '%s\n\n%s\n' "$content" "$existing" >.gitignore
+    else
+        printf '%s\n' "$content" >.gitignore
+    fi
 }
 
-function git_gitignore_types_add_vscode {
-    curl -L -s "https://www.gitignore.io/api/visualstudiocode" >>.gitignore
+function git_ignore_template_add() {
+    : ${1?"Usage: ${FUNCNAME[0]} <template1,template2..>"}
+    local content
+    content=$(curl -L -s "https://www.gitignore.io/api/$1")
+    _git_ignore_template_prepend "$content"
+}
+
+function git_ignore_template_add_vscode() {
+    local content
+    content=$(curl -L -s "https://www.gitignore.io/api/visualstudiocode")
+    _git_ignore_template_prepend "$content"
+}
+
+function git_ignore_template_add_common() {
+    local content
+    content=$(curl -L -s "https://www.gitignore.io/api/visualstudiocode,python,node,c++,windows,macos")
+    _git_ignore_template_prepend "$content"
 }
 
 function git_branch_remove_local_and_remote() {
