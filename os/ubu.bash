@@ -51,6 +51,17 @@ function deb_install_file_from_url() {
 
 alias ubu_processes_from_user='ps -u $USERNAME|grep -v ps -u'
 
+function kill_from_search() {
+    : ${1?"Usage: ${FUNCNAME[0]} <search> [signal]"}
+    local search="$1"
+    local sig="${2:-}"
+    local pids
+    pids=$(ps -aux | grep "$search" | grep -v grep | awk '{print $2}')
+    if [[ -n "$pids" ]]; then
+        kill ${sig:+"$sig"} $pids
+    fi
+}
+
 function ubu_pro_disable() {
     if ! test /etc/apt/apt.conf.d/20apt-esm-hook.conf; then
         sudo systemctl mask apt-news.service
