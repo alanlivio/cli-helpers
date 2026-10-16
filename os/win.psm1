@@ -493,7 +493,7 @@ function win_install_flutter() {
     $url = $response.base_url + '/' + $stable_release.archive
     zip_download_extract $url (Split-Path -Path $flutter_path -Parent)
     win_path_add "$flutter_path\bin"
-    winget install --id Microsoft.VisualStudio.2019.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+    winget install --id Microsoft.VisualStudio.2022.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 }
 
 function win_install_obs() {
