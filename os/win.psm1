@@ -1,3 +1,32 @@
+# -- dotfiles --
+
+function my_declutter() {
+    log_msg "# os declutter"
+    win_declutter_all
+    explorer_hide_home_dotfiles
+}
+
+function my_software() {
+    log_msg "# install packages"
+    winget_install Git.Git
+    winget_install Python.Python.3.13 --override "/passive PrependPath=1 Include_doc=0 Include_tcltk=0 Include_test=0 Include_pip=1 Include_launcher=1"
+}
+
+function my_dotfiles_and_update() {
+    log_msg "# dotfiles"
+    $dotfiles_dir = if (Test-Path variable:global:DOTFILES) { $global:DOTFILES } elseif (Test-Path "$env:USERPROFILE\src\dotfiles") { "$env:USERPROFILE\src\dotfiles" } else { $null }
+    if ($dotfiles_dir -and (Test-Path "$dotfiles_dir\.git")) {
+        if (Get-Command git_pull_recursive -ErrorAction SilentlyContinue) {
+            git_pull_recursive $dotfiles_dir
+        } elseif (Get-Command git -ErrorAction SilentlyContinue) {
+            git -C $dotfiles_dir pull
+        }
+    }
+    explorer_hide_home_dotfiles
+    log_msg "# update"
+    winget_upgrade
+}
+
 # -- winget/update --
 
 function winget_enable() {

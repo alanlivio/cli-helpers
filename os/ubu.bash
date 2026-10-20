@@ -1,3 +1,34 @@
+# -- dotfiles --
+
+function my_declutter() {
+    log_msg "# os declutter"
+    user_as_sudoer_no_password
+    ubu_snap_disable_dir_at_home
+    ubu_pro_disable
+    sudo apt -y autoremove
+}
+
+function my_software() {
+    log_msg "# install packages"
+    sudo apt update
+    sudo apt install -y git curl wget build-essential python3 python3-venv jq net-tools
+}
+
+function my_dotfiles_and_update() {
+    log_msg "# dotfiles"
+    local dotfiles_dir="${DOTFILES:-$HOME/src/dotfiles}"
+    if [[ -d "$dotfiles_dir/.git" ]]; then
+        if declare -F git_pull_recursive >/dev/null; then
+            git_pull_recursive "$dotfiles_dir"
+        elif type -p git >/dev/null; then
+            git -C "$dotfiles_dir" pull
+        fi
+    fi
+    log_msg "# update pkgs"
+    apt_upgrade
+    sudo apt -y autoremove
+}
+
 alias du_folder_count_files='find . -maxdepth 1 -type f | wc -l'
 alias du_folder_count_files_recusive='find . -maxdepth 1 -type f | wc -l'
 alias du_folder_list_sorted_by_size='du -ahd 1 | sort -h'
@@ -289,3 +320,4 @@ EOF
     chmod +x ~/.local/share/applications/antigravity.desktop
     sudo cp ~/.local/share/applications/antigravity.desktop /usr/share/applications/antigravity.desktop 2>/dev/null || true
 }
+
