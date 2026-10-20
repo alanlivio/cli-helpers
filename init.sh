@@ -21,3 +21,11 @@ for file in "$HELPERS_DIR/programs/"*.bash; do
         source $file
     fi
 done
+
+# -- load dotfiles/init.sh --
+
+if [[ -f "$HELPERS_DIR/../dotfiles/init.sh" ]]; then
+    source "$HELPERS_DIR/../dotfiles/init.sh"
+fi
+
+

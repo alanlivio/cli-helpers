@@ -19,11 +19,20 @@ if ($is_ubuntu -and (Test-Path (Join-Path $helpers_dir 'os\ubu.psm1'))) {
 
 # -- load <program>.ps1 files --
 
-$helpersDir = "$PSScriptRoot\programs"
+$programs_dir = Join-Path $HELPERS_DIR 'programs'
 
-Get-ChildItem -Path "$helpersDir\*.psm1" | ForEach-Object {
+Get-ChildItem -Path "$programs_dir\*.psm1" | ForEach-Object {
     $program = $_.BaseName
     if (Get-Command $program -ErrorAction SilentlyContinue) {
         Import-Module $_.FullName
     }
 }
+
+# -- load dotfiles/init.ps1 --
+
+$dotfiles_init = Join-Path (Split-Path -Parent $HELPERS_DIR) 'dotfiles\init.ps1'
+if (Test-Path $dotfiles_init) {
+    . $dotfiles_init
+}
+
+

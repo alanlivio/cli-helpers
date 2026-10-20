@@ -18,11 +18,14 @@ flowchart LR
         os/ubu.bash
         ...
     "]
+    dotfiles["
+        ../dotfiles/init.sh
+    "]
     
     bashrc --> |"loads"| sh-init
     sh-init --> |"1: loads matching OS script"| OS-dependent
     sh-init --> |"2: loads if program installed"| program-dependent
-    %% sh-init --> |"3: create bash alias functions at"| ps-init
+    sh-init --> |"3: loads dotfiles if present"| dotfiles
 ```
 
 **From PowerShell:**
@@ -41,11 +44,14 @@ flowchart LR
         os/ubu.ps1
         ...
     "]
+    dotfiles["
+        ../dotfiles/init.ps1
+    "]
 
     psprofile--> |"loads"| ps-init
     ps-init --> |"1: loads matching OS script"| OS-dependent
     ps-init --> |"2: loads if program installed"| program-dependent
-    %%ps-init --> |"3: create ps1 alias to functions at"| sh-init
+    ps-init --> |"3: loads dotfiles if present"| dotfiles
 ```
 
 ## Bash Setup
@@ -66,9 +72,21 @@ git clone https://github.com/alanlivio/cli-helpers $env:USERPROFILE\src\cli-help
 & $env:USERPROFILE\src\cli-helpers\setup_profile_loading.ps1
 ```
 
-## Adding Custom Scripts
+## Dotfiles Integration
 
-To add a script that only loads when a specific program is installed (e.g., `docker`), simply create a file named `programs/docker.bash` or `programs/docker.ps1`. The library handles the rest and will automatically load it when the program is detected!
+`cli-helpers` is designed to be paired with a personal dotfiles repository located at the same directory level (for example, `~/src/dotfiles` alongside `~/src/cli-helpers` on Linux, or `$env:USERPROFILE\src\dotfiles` alongside `$env:USERPROFILE\src\cli-helpers` on Windows).
+
+`cli-helpers` automatically loads the companion dotfiles repository via `dotfiles/init.sh` or `dotfiles/init.ps1` at the end of its initialization sequence. This allows personal dotfiles to immediately use loaded helpers and override `my_*` lifecycle helpers without needing to manually import `cli-helpers`.
+
+## `my_*` Helpers
+
+`cli-helpers` provides baseline implementations for common lifecycle helpers in [`os/ubu.bash`](os/ubu.bash) and [`os/win.psm1`](os/win.psm1):
+
+- `my_declutter`: Removes unused packages/shortcuts and hides dotfiles in the user home directory (implemented in [`os/ubu.bash`](os/ubu.bash) and [`os/win.psm1`](os/win.psm1)).
+- `my_software`: Installs baseline dependencies such as Git and Python (implemented in [`os/ubu.bash`](os/ubu.bash) and [`os/win.psm1`](os/win.psm1)).
+- `my_dotfiles_and_update`: Pulls git updates for the dotfiles repository and upgrades system packages (`winget upgrade` on Windows, `apt update && apt upgrade` on Ubuntu) (implemented in [`os/ubu.bash`](os/ubu.bash) and [`os/win.psm1`](os/win.psm1)).
+
+These helpers can be used as-is, or overloaded in your personal dotfiles repository (`dotfiles/init.sh` or `dotfiles/init.ps1`) to include personal toolchains, application configurations, and directory symlinks.
 
 ## Running Tests
 
