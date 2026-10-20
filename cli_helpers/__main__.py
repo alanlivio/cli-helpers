@@ -2,9 +2,10 @@ import os
 import sys
 
 if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
         for sub in ("", "PySide6", "shiboken6", "fluentqt"):
-            d = os.path.join(sys._MEIPASS, sub)
+            d = os.path.join(meipass, sub)
             if os.path.isdir(d):
                 try:
                     os.add_dll_directory(d)

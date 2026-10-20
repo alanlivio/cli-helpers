@@ -34,19 +34,45 @@ import fluentqt
 
 
 def get_resource_dir() -> Path:
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        return Path(sys._MEIPASS) / "cli_helpers" / "resources"
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        for sub in ("cli_helpers/resources", "resources"):
+            p = Path(meipass) / sub
+            if p.is_dir():
+                return p
+    for base in (Path(__file__).resolve().parent, Path(sys.executable).resolve().parent):
+        p = base / "resources"
+        if p.is_dir():
+            return p
     return Path(__file__).resolve().parent / "resources"
 
 
 def get_app_icon() -> QIcon:
-    res_dir = get_resource_dir()
-    for name in ("icon.ico", "icon.png", "icon.svg"):
-        p = res_dir / name
-        if p.is_file():
-            icon = QIcon(str(p))
+    dirs = []
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        dirs.extend([Path(meipass) / "cli_helpers" / "resources", Path(meipass) / "resources"])
+    dirs.extend([Path(__file__).resolve().parent / "resources", Path(sys.executable).resolve().parent / "resources"])
+
+    for d in dirs:
+        for name in ("icon.ico", "icon.png", "icon.svg"):
+            p = d / name
+            if p.is_file():
+                icon = QIcon(str(p))
+                if not icon.isNull():
+                    return icon
+
+    if sys.platform == "win32" and getattr(sys, "frozen", False):
+        try:
+            from PySide6.QtWidgets import QFileIconProvider
+            from PySide6.QtCore import QFileInfo
+
+            icon = QFileIconProvider().icon(QFileInfo(sys.executable))
             if not icon.isNull():
                 return icon
+        except Exception:
+            pass
+
     return QIcon()
 
 
@@ -285,23 +311,23 @@ class MainWindow(fluentqt.Window):
         if self.native_title_bar:
             self.native_title_bar.setWindowTitle("CLI Helpers")
             self.title_bar_container = QWidget(self.native_title_bar)
-            self.title_bar_container.setAttribute(Qt.WA_TransparentForMouseEvents)
+            self.title_bar_container.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
             self.title_bar_container.move(14, 0)
             self.title_bar_container.setFixedHeight(36)
 
             tb_layout = QHBoxLayout(self.title_bar_container)
             tb_layout.setContentsMargins(0, 0, 0, 0)
             tb_layout.setSpacing(8)
-            tb_layout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            tb_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
             if not icon.isNull():
                 self.title_icon_widget = QLabel(self.title_bar_container)
-                self.title_icon_widget.setAttribute(Qt.WA_TransparentForMouseEvents)
+                self.title_icon_widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
                 self.title_icon_widget.setPixmap(icon.pixmap(16, 16))
                 tb_layout.addWidget(self.title_icon_widget)
 
             self.title_label_widget = QLabel("CLI Helpers", self.title_bar_container)
-            self.title_label_widget.setAttribute(Qt.WA_TransparentForMouseEvents)
+            self.title_label_widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
             self.title_label_widget.setStyleSheet("font-size: 12px; font-weight: 500; color: #ffffff;")
             tb_layout.addWidget(self.title_label_widget)
 
