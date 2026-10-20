@@ -11,20 +11,20 @@ ifeq ($(OS),Windows_NT)
   endif
 endif
 
-.PHONY: help deps run gui build package clean test  icons
+.PHONY: help deps run gui build release-windows clean test icons
 
 help:
 	@printf "%s\n" \
 		"Usage: make [target]" \
 		"" \
 		"Targets:" \
-		"  deps     Install dependencies" \
-		"  run      Run GUI application" \
-		"  gui      Run GUI application" \
-		"  build    Build standalone executable with PyInstaller" \
-		"  package  Package standalone executable for WinGet release" \
-		"  clean    Clean build artifacts" \
-		"  test     Run unit tests"
+		"  deps             Install dependencies" \
+		"  run              Run GUI application" \
+		"  gui              Run GUI application" \
+		"  build            Build standalone executable with PyInstaller" \
+		"  release-windows  Package and publish Windows release to GitHub via gh" \
+		"  clean            Clean build artifacts" \
+		"  test             Run unit tests"
 
 deps:
 	python -m pip install -e ".[dev]"
@@ -50,11 +50,12 @@ icons:
 build: icons
 	pyinstaller --noconfirm --clean --onefile --windowed --paths . --collect-all fluentqt --collect-data cli_helpers --icon "cli_helpers/resources/icon.ico" --version-file version_info.txt --name cli-helpers cli_helpers/__main__.py
 
-package: build
-	tar -a -c -f dist/cli-helpers-windows-x64.zip -C dist cli-helpers.exe
-	@printf "Package built: dist/cli-helpers-windows-x64.zip\n"
+VERSION ?= $(shell python -c "from cli_helpers.version import __version__; print(__version__)")
+
+release-windows: build
 	@printf "SHA256: "
-	sha256sum dist/cli-helpers-windows-x64.zip
+	sha256sum dist/cli-helpers.exe
+	gh release upload v$(VERSION) dist/cli-helpers.exe --clobber || gh release create v$(VERSION) dist/cli-helpers.exe --generate-notes
 
 test: icons
 	python -m unittest discover -s tests
