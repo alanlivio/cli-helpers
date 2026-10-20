@@ -48,7 +48,7 @@ icons:
 	npx --yes icon-gen -i cli_helpers/resources/icon.svg -o cli_helpers/resources --ico --ico-name icon -r
 
 build: icons
-	pyinstaller --noconfirm --clean --onefile --windowed --paths . --collect-all fluentqt --collect-data cli_helpers --icon "cli_helpers/resources/icon.ico" --version-file version_info.txt --name cli-helpers cli_helpers/__main__.py
+	pyinstaller --noconfirm --clean --onefile --windowed --paths . --collect-all fluentqt --collect-all cli_helpers --add-data "cli_helpers/resources:cli_helpers/resources" --icon "cli_helpers/resources/icon.ico" --version-file version_info.txt --name cli-helpers cli_helpers/__main__.py
 
 VERSION ?= $(shell python -c "from cli_helpers.version import __version__; print(__version__)")
 
