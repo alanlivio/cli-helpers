@@ -309,6 +309,8 @@ class StatusCheckWorker(QThread):
     def run(self):
         user_profile = str(Path.home())
         result = {
+            "winget_installed": False,
+            "winget_version": "",
             "git_installed": False,
             "git_version": "",
             "helpers_installed": bool(
@@ -336,6 +338,34 @@ class StatusCheckWorker(QThread):
         creation_flags = (
             subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         )
+        winget_cmd = shutil.which("winget")
+        if not winget_cmd and sys.platform == "win32":
+            local_appdata = os.environ.get("LOCALAPPDATA", "")
+            if local_appdata:
+                candidate = os.path.join(
+                    local_appdata, "Microsoft", "WindowsApps", "winget.exe"
+                )
+                if os.path.isfile(candidate):
+                    winget_cmd = candidate
+        if not winget_cmd:
+            winget_cmd = "winget"
+
+        try:
+            res = subprocess.run(
+                [winget_cmd, "--version"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=creation_flags,
+            )
+            if res.returncode == 0 and res.stdout:
+                result["winget_installed"] = True
+                raw = res.stdout.strip()
+                result["winget_version"] = raw if raw.startswith("v") else f"v{raw}"
+        except Exception:
+            pass
+
         try:
             res = subprocess.run(
                 ["git", "--version"],

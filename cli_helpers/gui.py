@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import re
+import shutil
 import signal
 import subprocess
 from enum import Enum
@@ -373,6 +374,19 @@ class MainWindow(fluentqt.Window):
         setup_header.addWidget(self.btn_refresh_all)
         setup_layout.addLayout(setup_header)
 
+        winget_row = QHBoxLayout()
+        self.winget_label = BodyLabel("WinGet:")
+        self.winget_label.setFixedWidth(135)
+        self.winget_badge = InfoBadge.info("Checking...")
+        self.btn_install_winget = PushButton("Install WinGet")
+        self.btn_install_winget.setFixedWidth(125)
+        self.btn_install_winget.clicked.connect(self.install_winget)
+        winget_row.addWidget(self.winget_label)
+        winget_row.addWidget(self.winget_badge)
+        winget_row.addStretch()
+        winget_row.addWidget(self.btn_install_winget)
+        setup_layout.addLayout(winget_row)
+
         git_row = QHBoxLayout()
         self.git_label = BodyLabel("Git:")
         self.git_label.setFixedWidth(135)
@@ -574,6 +588,9 @@ class MainWindow(fluentqt.Window):
 
         self.btn_refresh_all.setEnabled(not busy)
         self.btn_reload_tasks.setEnabled(not busy)
+        self.btn_install_winget.setEnabled(
+            not busy and self.winget_badge.text() == "Not installed"
+        )
         self.btn_install_git.setEnabled(
             not busy and self.git_badge.text() == "Not installed"
         )
@@ -605,6 +622,18 @@ class MainWindow(fluentqt.Window):
 
     def clear_output(self):
         self.output_box.clear()
+
+    def get_winget_executable(self):
+        cmd = shutil.which("winget")
+        if not cmd and sys.platform == "win32":
+            local_appdata = os.environ.get("LOCALAPPDATA", "")
+            if local_appdata:
+                candidate = os.path.join(
+                    local_appdata, "Microsoft", "WindowsApps", "winget.exe"
+                )
+                if os.path.isfile(candidate):
+                    return candidate
+        return "winget"
 
     def get_powershell_executable(self):
         if self._cached_ps_exe:
@@ -679,6 +708,17 @@ class MainWindow(fluentqt.Window):
         self._status_worker.start()
 
     def _on_status_ready(self, info):
+        if info.get("winget_installed"):
+            self.winget_badge.setText("Installed")
+            if info.get("winget_version"):
+                self.winget_badge.setToolTip(info["winget_version"])
+            self.winget_badge.setLevel(InfoLevel.SUCCESS)
+            self.btn_install_winget.setEnabled(False)
+        else:
+            self.winget_badge.setText("Not installed")
+            self.winget_badge.setLevel(InfoLevel.WARNING)
+            self.btn_install_winget.setEnabled(True)
+
         if info["git_installed"]:
             self.git_badge.setText("Installed")
             if info.get("git_version"):
@@ -788,6 +828,95 @@ class MainWindow(fluentqt.Window):
         self._active_worker.finished.connect(on_finished)
         self._active_worker.start()
 
+    def install_winget(self):
+        if sys.platform != "win32":
+            self.add_output("WinGet installation is only supported on Windows.")
+            return
+
+        self.add_output("Starting WinGet installation from GitHub release msixbundle...")
+        ps_exe = self.get_powershell_executable()
+        script = (
+            "$ProgressPreference = 'SilentlyContinue'; "
+            "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; "
+            "try { "
+            "Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -ErrorAction SilentlyContinue; "
+            "} catch {}; "
+            "if (Get-Command winget -ErrorAction SilentlyContinue) { "
+            "Write-Host 'WinGet is already installed.'; "
+            "exit 0; "
+            "}; "
+            "$url = 'https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'; "
+            "try { "
+            "$api = Invoke-RestMethod -Uri 'https://api.github.com/repos/microsoft/winget-cli/releases/latest' -Headers @{'Accept'='application/vnd.github.v3+json'} -ErrorAction Stop; "
+            "$asset = $api.assets | Where-Object { $_.name -like '*Microsoft.DesktopAppInstaller*.msixbundle' } | Select-Object -First 1; "
+            "if ($asset -and $asset.browser_download_url) { $url = $asset.browser_download_url }; "
+            "} catch {}; "
+            "$bundle = Join-Path $env:TEMP ([System.IO.Path]::GetFileName($url)); "
+            "Write-Host ('Downloading WinGet from ' + $url + '...'); "
+            "try { "
+            "(New-Object System.Net.WebClient).DownloadFile($url, $bundle); "
+            "} catch { "
+            "Invoke-WebRequest -Uri $url -OutFile $bundle -UseBasicParsing; "
+            "}; "
+            "Write-Host ('Installing ' + $bundle + '...'); "
+            "try { "
+            "Add-AppxPackage -Path $bundle -ErrorAction Stop; "
+            "Write-Host 'WinGet package installed successfully.'; "
+            "} catch { "
+            "Write-Host 'Direct package install failed, attempting to install dependencies...'; "
+            "$depUrl = 'https://github.com/microsoft/winget-cli/releases/latest/download/DesktopAppInstaller_Dependencies.zip'; "
+            "$depZip = Join-Path $env:TEMP 'DesktopAppInstaller_Dependencies.zip'; "
+            "$depDir = Join-Path $env:TEMP 'DesktopAppInstaller_Dependencies'; "
+            "try { "
+            "(New-Object System.Net.WebClient).DownloadFile($depUrl, $depZip); "
+            "Expand-Archive -Path $depZip -DestinationPath $depDir -Force; "
+            "$arch = if ([Environment]::Is64BitOperatingSystem) { if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' } } else { 'x86' }; "
+            "$archDir = Join-Path $depDir $arch; "
+            "if (Test-Path $archDir) { "
+            "Get-ChildItem -Path $archDir -Filter '*.appx' | ForEach-Object { "
+            "Write-Host ('Installing dependency: ' + $_.Name + '...'); "
+            "Add-AppxPackage -Path $_.FullName -ErrorAction SilentlyContinue; "
+            "}; "
+            "}; "
+            "Add-AppxPackage -Path $bundle -ErrorAction Stop; "
+            "Write-Host 'WinGet package installed successfully.'; "
+            "} catch { "
+            "Write-Host ('Failed to install WinGet package: ' + $_.Exception.Message); "
+            "exit 1; "
+            "} finally { "
+            "Remove-Item -Force $depZip -ErrorAction SilentlyContinue; "
+            "Remove-Item -Recurse -Force $depDir -ErrorAction SilentlyContinue; "
+            "}; "
+            "} finally { "
+            "Remove-Item -Force $bundle -ErrorAction SilentlyContinue; "
+            "}; "
+            "$windowsApps = Join-Path $env:LOCALAPPDATA 'Microsoft\\WindowsApps'; "
+            "if (Test-Path $windowsApps) { "
+            "if ($env:PATH -notlike ('*' + $windowsApps + '*')) { $env:PATH = $windowsApps + ';' + $env:PATH }; "
+            "}; "
+            "if (Get-Command winget -ErrorAction SilentlyContinue) { "
+            "Write-Host 'WinGet verification succeeded.'; "
+            "exit 0; "
+            "} else { "
+            "Write-Host 'WinGet installed. A terminal restart may be required for PATH updates.'; "
+            "exit 0; "
+            "}"
+        )
+        escaped_script = script.replace('"', '`"')
+        args = [
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            escaped_script,
+        ]
+        self.run_worker_command(
+            ps_exe,
+            args,
+            status_msg="Installing WinGet...",
+            on_success_msg="WinGet installation completed.",
+        )
+
     def install_git(self):
         self.add_output("Starting Git installation via winget...")
         args = [
@@ -800,8 +929,9 @@ class MainWindow(fluentqt.Window):
             "--accept-package-agreements",
             "--accept-source-agreements",
         ]
+        winget_exe = self.get_winget_executable()
         self.run_worker_command(
-            "winget",
+            winget_exe,
             args,
             status_msg="Installing Git...",
             on_success_msg="Git installation completed.",

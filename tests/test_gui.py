@@ -49,6 +49,8 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.setup_title.text(), "Setup")
         self.assertEqual(self.window.tasks_title.text(), "Run")
         self.assertEqual(self.window.output_title.text(), "Output log")
+        self.assertEqual(self.window.winget_label.text(), "WinGet:")
+        self.assertEqual(self.window.btn_install_winget.text(), "Install WinGet")
         self.assertEqual(self.window.helpers_label.text(), "~/src/cli-helpers:")
         self.assertEqual(self.window.helpers_github_prefix.text(), "github.com/")
         self.assertEqual(self.window.tb_helpers_user.placeholderText(), "USER")
@@ -87,6 +89,8 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.status_label.text(), "Working...")
         self.assertFalse(self.window.btn_refresh_all.isEnabled())
         self.assertFalse(self.window.btn_reload_tasks.isEnabled())
+        self.assertFalse(self.window.btn_install_winget.isEnabled())
+        self.assertFalse(self.window.btn_install_git.isEnabled())
         self.assertFalse(self.window.btn_run_my_task.isEnabled())
         self.assertFalse(self.window.btn_run_recent_task.isEnabled())
 
@@ -97,6 +101,8 @@ class TestGui(unittest.TestCase):
 
     def test_status_ready_callback(self):
         mock_info = {
+            "winget_installed": True,
+            "winget_version": "v1.29.380",
             "git_installed": True,
             "git_version": "v2.55.0",
             "helpers_installed": True,
@@ -105,6 +111,9 @@ class TestGui(unittest.TestCase):
             "dotfiles_user": "testuser",
         }
         self.window._on_status_ready(mock_info)
+        self.assertEqual(self.window.winget_badge.text(), "Installed")
+        self.assertEqual(self.window.winget_badge.level, InfoLevel.SUCCESS)
+        self.assertFalse(self.window.btn_install_winget.isEnabled())
         self.assertEqual(self.window.git_badge.text(), "Installed")
         self.assertEqual(self.window.helpers_badge.text(), "Installed")
         self.assertEqual(self.window.helpers_badge.level, InfoLevel.SUCCESS)
@@ -134,11 +143,15 @@ class TestGui(unittest.TestCase):
 
     def test_status_not_installed(self):
         mock_info = {
+            "winget_installed": False,
             "git_installed": False,
             "helpers_installed": False,
             "dotfiles_installed": False,
         }
         self.window._on_status_ready(mock_info)
+        self.assertEqual(self.window.winget_badge.text(), "Not installed")
+        self.assertEqual(self.window.winget_badge.level, InfoLevel.WARNING)
+        self.assertTrue(self.window.btn_install_winget.isEnabled())
         self.assertEqual(self.window.helpers_badge.text(), "Not installed")
         self.assertEqual(self.window.helpers_badge.level, InfoLevel.ERROR)
         self.assertEqual(self.window.btn_install_helpers.text(), "Clone helpers")
@@ -270,6 +283,30 @@ class TestGui(unittest.TestCase):
         from cli_helpers.gui import get_app_icon
         icon = get_app_icon()
         self.assertFalse(icon.isNull())
+
+    def test_install_winget_delegation(self):
+        called_args = []
+        with patch.object(
+            self.window, "run_worker_command", side_effect=lambda *args, **kwargs: called_args.append((args, kwargs))
+        ):
+            with patch("sys.platform", "win32"):
+                self.window.install_winget()
+                self.assertEqual(len(called_args), 1)
+                cmd_args, kwargs = called_args[0]
+                self.assertTrue(cmd_args[0].lower().endswith(("powershell.exe", "pwsh.exe", "powershell", "pwsh")))
+                self.assertIn("Installing WinGet...", kwargs.get("status_msg", ""))
+                self.assertIn("WinGet installation completed.", kwargs.get("on_success_msg", ""))
+
+    def test_status_check_worker_winget_field(self):
+        worker = StatusCheckWorker(None, None)
+        status_results = []
+        worker.status_ready.connect(status_results.append)
+        worker.start()
+        worker.wait(5000)
+        self.app.processEvents()
+        self.assertEqual(len(status_results), 1)
+        self.assertIn("winget_installed", status_results[0])
+        self.assertIn("winget_version", status_results[0])
 
 
 if __name__ == "__main__":
