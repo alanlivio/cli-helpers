@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+
+PackageIdentifier: alanlivio.clihelpers
+PackageVersion: @VERSION@
+Installers:
+- Architecture: x64
+  InstallerType: portable
+  InstallerUrl: https://github.com/alanlivio/cli_helpers/releases/download/v@VERSION@/cli-helpers.exe
+  InstallerSha256: @SHA256@
+  Commands:
+  - cli-helpers
+ManifestType: installer
+ManifestVersion: 1.12.0

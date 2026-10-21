@@ -1,30 +1,23 @@
 MAKEFLAGS += -s --no-print-directory
 .DEFAULT_GOAL := help
 $(if $(filter Windows_NT,$(OS)),$(if $(shell where printf 2>nul),,$(error coreutils is not installed. Please run: winget install coreutils)))
-ifeq ($(OS),Windows_NT)
-  SH := $(shell where sh 2>nul)
-  ifeq ($(SH),)
-    SH := $(shell git --exec-path 2>nul)/../../../bin/sh.exe
-  endif
-  ifneq ($(wildcard $(SH)),)
-    SHELL := $(SH)
-  endif
-endif
 
-.PHONY: help deps run gui build release-windows clean test icons
+.PHONY: help deps run gui build winget-pkg winget-submit release clean test icons
 
 help:
 	@printf "%s\n" \
 		"Usage: make [target]" \
 		"" \
 		"Targets:" \
-		"  deps             Install dependencies" \
-		"  run              Run GUI application" \
-		"  gui              Run GUI application" \
-		"  build            Build standalone executable with PyInstaller" \
-		"  release-windows  Package and publish Windows release to GitHub via gh" \
-		"  clean            Clean build artifacts" \
-		"  test             Run unit tests"
+		"  deps           Install dependencies" \
+		"  run            Run GUI application" \
+		"  gui            Run GUI application" \
+		"  build          Build standalone executable with PyInstaller" \
+		"  winget-pkg     Generate and validate Winget manifest" \
+		"  winget-submit  Submit package manifest to winget-pkgs via wingetcreate" \
+		"  release        Publish release and Winget manifest to GitHub via gh" \
+		"  clean          Clean build artifacts" \
+		"  test           Run unit tests"
 
 deps:
 	python -m pip install -e ".[dev]"
@@ -52,10 +45,26 @@ build: icons
 
 VERSION ?= $(shell python -c "from cli_helpers.version import __version__; print(__version__)")
 
-release-windows: build
-	@printf "SHA256: "
+winget-pkg: build
+	mkdir -p dist/winget
+	SHA256=$$(sha256sum dist/cli-helpers.exe | cut -b 1-64 | tr 'a-z' 'A-Z'); \
+	sed -e "s/@VERSION@/$(VERSION)/g" packaging/alanlivio.clihelpers.yaml.in > dist/winget/alanlivio.clihelpers.yaml; \
+	sed -e "s/@VERSION@/$(VERSION)/g" -e "s/@SHA256@/$$SHA256/g" packaging/alanlivio.clihelpers.installer.yaml.in > dist/winget/alanlivio.clihelpers.installer.yaml; \
+	sed -e "s/@VERSION@/$(VERSION)/g" packaging/alanlivio.clihelpers.locale.en-US.yaml.in > dist/winget/alanlivio.clihelpers.locale.en-US.yaml
+	winget validate dist/winget
+
+winget-submit: winget-pkg
+	TOKEN=$$(gh auth token 2>/dev/null || echo ""); \
+	if [ -n "$$TOKEN" ]; then \
+		wingetcreate submit dist/winget --prtitle "New package: alanlivio.clihelpers version $(VERSION)" --token "$$TOKEN"; \
+	else \
+		wingetcreate submit dist/winget --prtitle "New package: alanlivio.clihelpers version $(VERSION)"; \
+	fi
+
+release: winget-pkg
+	@printf "SHA256 (exe): "
 	sha256sum dist/cli-helpers.exe
-	gh release upload v$(VERSION) dist/cli-helpers.exe --clobber || gh release create v$(VERSION) dist/cli-helpers.exe --generate-notes
+	gh release upload v$(VERSION) dist/cli-helpers.exe dist/winget/* --clobber || gh release create v$(VERSION) dist/cli-helpers.exe dist/winget/* --generate-notes
 
 test: icons
 	python -m unittest discover -s tests
