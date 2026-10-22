@@ -14,7 +14,8 @@ flowchart LR
         ...
     "]
     OS-dependent["
-        os/wsl.bash
+        os/ubu_wsl.bash
+        os/ubu_code.bash
         os/ubu.bash
         ...
     "]
@@ -40,7 +41,8 @@ flowchart LR
         ...
     "]
     OS-dependent["
-        os/win.ps1
+        os/win.psm1
+        os/win_code.psm1
         os/ubu.ps1
         ...
     "]

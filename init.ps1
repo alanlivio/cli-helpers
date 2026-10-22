@@ -12,6 +12,7 @@ $is_linux = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([S
 $is_ubuntu = $is_linux -and (Test-Path '/etc/lsb-release' -PathType Leaf)
 if ($is_windows) {
     Import-Module (Join-Path $helpers_dir 'os\win.psm1')
+    Import-Module (Join-Path $helpers_dir 'os\win_code.psm1')
 }
 if ($is_ubuntu -and (Test-Path (Join-Path $helpers_dir 'os\ubu.psm1'))) {
     Import-Module (Join-Path $helpers_dir 'os\ubu.psm1')

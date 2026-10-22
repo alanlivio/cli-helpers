@@ -316,83 +316,6 @@ function win_admin_enable_ssh() {
 }
 
 
-# -- code -- 
-
-function code_install_extensions {
-    param ( [Parameter(Mandatory = $true, ValueFromPipeline = $true)] [string[]]$extensions )
-    $executable = if ($env:CODE_EXECUTABLE) { $env:CODE_EXECUTABLE } else { "code" }
-    $installed = @(& $executable --list-extensions)
-    foreach ($ext in $extensions) {
-        if ($installed -notcontains $ext) {
-            & $executable --install-extension $ext
-        }
-    }
-}
-
-function code_install_extensions_from_txt {
-    param([string]$path)
-    if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path $path)) {
-        return $false
-    }
-    $extensions = Get-Content $path | ForEach-Object { ($_ -split '#')[0].Trim() } | Where-Object { $_ }
-    code_install_extensions $extensions
-}
-
-function code_wsl_auto {
-    param(
-        [Parameter(Position = 0)] [string]$folder_path = (Get-Location).ProviderPath,
-        [Parameter(ValueFromRemainingArguments = $true)] [string[]]$extra_args
-    )
-    if ([string]::IsNullOrWhiteSpace($folder_path)) {
-        $folder_path = (Get-Location).ProviderPath
-    }
-    $executable = if ($env:CODE_EXECUTABLE) {
-        $env:CODE_EXECUTABLE
-    } else {
-        $found = (Get-Command code -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source
-        if ($found) { $found } else { "code" }
-    }
-    $is_unc = (Get-Location).ProviderPath.StartsWith('\\')
-    if ($folder_path -like '-*') {
-        if ($is_unc) { Push-Location $env:TEMP }
-        try {
-            & $executable $folder_path @extra_args
-        } finally {
-            if ($is_unc) { Pop-Location }
-        }
-        return
-    }
-    $resolved_path = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($folder_path)
-    $is_file = if (Test-Path -LiteralPath $resolved_path) {
-        Test-Path -LiteralPath $resolved_path -PathType Leaf
-    } else {
-        [System.IO.Path]::HasExtension($resolved_path)
-    }
-    if ($resolved_path -match '^\\\\wsl(?:\.localhost|\$)\\[^\\]+$') {
-        $resolved_path += '\'
-    }
-    if ($is_unc) { Push-Location $env:TEMP }
-    try {
-        if ($resolved_path -match '^\\\\wsl(?:\.localhost|\$)\\([^\\]+)\\(.*)$') {
-            $distro_name = $matches[1]
-            $linux_path = '/' + ($matches[2] -replace '\\', '/')
-            if ($is_file) {
-                & $executable --file-uri "vscode-remote://wsl+$distro_name$linux_path" @extra_args
-            } else {
-                & $executable --folder-uri "vscode-remote://wsl+$distro_name$linux_path" @extra_args
-            }
-        } else {
-            & $executable $resolved_path @extra_args
-        }
-    } finally {
-        if ($is_unc) { Pop-Location }
-    }
-}
-
-function code_alias_to_auto_open_wsl {
-    Set-Alias -Name code -Value code_wsl_auto -Scope Global -Option AllScope -Force
-}
-
 
 # -- install -- 
 
@@ -946,7 +869,7 @@ function win_modern_context_menu_add {
     }
 
     $helpersInit = (Resolve-Path (Join-Path (Split-Path -Parent $PSScriptRoot) "init.ps1")).ProviderPath
-    $helpersInitEscaped = $helpersInit -replace '\\', '\\\\'
+    $helpersInitEscaped = $helpersInit.Replace('\', '\\')
 
     $md5Bytes = [System.Security.Cryptography.MD5]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes("clihelpers.$name"))
     $guid = [Guid]::new($md5Bytes)
@@ -958,12 +881,18 @@ function win_modern_context_menu_add {
     $d4 = ($b[8..15] | ForEach-Object { '0x{0:x2}' -f $_ }) -join ', '
     $clsid_struct = ('{{ 0x{0:x8}, 0x{1:x4}, 0x{2:x4}, {{ {3} }} }}' -f $d1, $d2, $d3, $d4)
 
+    $exeCandidate = ($icon -split ',')[0]
+    $fullExe = if (Test-Path $exeCandidate) { (Resolve-Path $exeCandidate).ProviderPath } else { (Get-Command $exeCandidate -ErrorAction SilentlyContinue).Source }
+    $iconIndex = if ($icon -match ',(-?\d+)$') { $matches[1] } else { '0' }
+    $iconTarget = if ($fullExe) { "$fullExe,$iconIndex" } else { $icon }
+    $iconEscaped = $iconTarget.Replace('\', '\\')
+
     $safeIdent = ($name -replace '[^a-zA-Z0-9]', '')
     $map = @{
         '{{ clsid_str }}'    = $clsid_str
         '{{ clsid_struct }}' = $clsid_struct
         '{{ title }}'        = $title
-        '{{ icon }}'         = $icon
+        '{{ icon }}'         = $iconEscaped
         '{{ ps_function }}'  = $ps_function
         '{{ package_name }}' = "CliHelpers.$safeIdent"
         '{{ verb_id }}'      = "${safeIdent}Command"
@@ -984,13 +913,17 @@ function win_modern_context_menu_add {
     
     Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
     $pkgLogo = Join-Path $pkgDir "logo.png"
-    $exeCandidate = ($icon -split ',')[0]
-    $fullExe = if (Test-Path $exeCandidate) { (Resolve-Path $exeCandidate).ProviderPath } else { (Get-Command $exeCandidate -ErrorAction SilentlyContinue).Source }
     if ($fullExe -and (Test-Path $fullExe)) {
         try {
             $extractedIcon = [System.Drawing.Icon]::ExtractAssociatedIcon($fullExe)
             $bmp = $extractedIcon.ToBitmap()
-            $bmp.Save($pkgLogo, [System.Drawing.Imaging.ImageFormat]::Png)
+            $resized = New-Object System.Drawing.Bitmap 44, 44
+            $g = [System.Drawing.Graphics]::FromImage($resized)
+            $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            $g.DrawImage($bmp, 0, 0, 44, 44)
+            $g.Dispose()
+            $resized.Save($pkgLogo, [System.Drawing.Imaging.ImageFormat]::Png)
+            $resized.Dispose()
             $bmp.Dispose()
             $extractedIcon.Dispose()
         } catch {}

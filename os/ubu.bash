@@ -167,81 +167,6 @@ function user_as_sudoer_no_password() {
     sudo grep -q "^$USER\\b" /etc/sudoers || echo "$USER ALL=(ALL) NOPASSWD:ALL" | sudo tee -a /etc/sudoers
 }
 
-# -- code --
-
-function code_install_extensions() {
-    local executable
-    executable=$(find ~/.antigravity-ide-server/bin -name antigravity-ide-server -type f 2>/dev/null | head -n 1)
-    if [[ -z "$executable" ]]; then
-        executable=$(find ~/.vscode-server/bin -name code-server -type f 2>/dev/null | head -n 1)
-    fi
-    executable="${executable:-${CODE_EXECUTABLE:-code}}"
-    local installed
-    installed="$("$executable" --list-extensions 2>/dev/null)"
-    for ext in "$@"; do
-        if ! echo "$installed" | grep -qiFx "$ext"; then
-            "$executable" --install-extension "$ext" 2>/dev/null || true
-        fi
-    done
-}
-
-function code_install_extensions_from_txt() {
-    local path="$1"
-    if [[ -z "$path" || ! -f "$path" ]]; then
-        return 1
-    fi
-    local extensions=()
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        line="${line%%#*}"
-        line="$(echo "$line" | xargs)"
-        [[ -n "$line" ]] && extensions+=("$line")
-    done <"$path"
-    code_install_extensions "${extensions[@]}"
-}
-
-function code_alias_to_auto_open_wsl() {
-    function _code_auto_open_wsl() {
-        if [[ "$1" == -* ]]; then
-            local executable="${CODE_EXECUTABLE:-code}"
-            "$executable" "$@"
-            return $?
-        fi
-        local folder_path="${1:-.}"
-        local executable="${CODE_EXECUTABLE:-code}"
-        local is_file=false
-        if [[ -f "$folder_path" ]]; then
-            is_file=true
-        fi
-        if [[ "$folder_path" == "~"* ]]; then
-            folder_path="${folder_path/#\~/$HOME}"
-        fi
-        if type wslpath &>/dev/null && [[ "$folder_path" != \\\\* && "$folder_path" != //* && ! "$folder_path" =~ ^[a-zA-Z]: ]]; then
-            folder_path="$(wslpath -a -w "$folder_path" 2>/dev/null || echo "$folder_path")"
-        fi
-        if [[ "$folder_path" == //wsl* ]]; then
-            folder_path="\\\\${folder_path#//}"
-            folder_path="${folder_path//\//\\}"
-        fi
-        local re_root='^\\\\wsl(\.localhost|\$)\\[^\\]+$'
-        if [[ "$folder_path" =~ $re_root ]]; then
-            folder_path="${folder_path}\\"
-        fi
-        local re='^\\\\wsl(\.localhost|\$)\\([^\\]+)\\(.*)$'
-        if [[ "$folder_path" =~ $re ]]; then
-            local distro_name="${BASH_REMATCH[2]}"
-            local linux_path="/${BASH_REMATCH[3]//\\//}"
-            if [[ "$is_file" == true ]]; then
-                "$executable" --file-uri "vscode-remote://wsl+$distro_name$linux_path" "${@:2}"
-            else
-                "$executable" --folder-uri "vscode-remote://wsl+$distro_name$linux_path" "${@:2}"
-            fi
-        else
-            "$executable" "$folder_path" "${@:2}"
-        fi
-    }
-    alias code="_code_auto_open_wsl"
-}
-
 # -- install --
 
 function ubu_install_latex() {
@@ -320,4 +245,3 @@ EOF
     chmod +x ~/.local/share/applications/antigravity.desktop
     sudo cp ~/.local/share/applications/antigravity.desktop /usr/share/applications/antigravity.desktop 2>/dev/null || true
 }
-
