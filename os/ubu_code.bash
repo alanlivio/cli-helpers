@@ -1,5 +1,8 @@
 function _wsl_auto_open() {
     local executable="$1"
+    if [[ -z "$executable" ]]; then
+        return 1
+    fi
     shift
     if [[ "$1" == -* ]]; then
         "$executable" "$@"
@@ -41,14 +44,15 @@ function _wsl_auto_open() {
 # -- code --
 
 function _code_server_executable() {
-    local exe
-    exe=$(find ~/.vscode-server/bin -name code-server -type f 2>/dev/null | head -n 1)
-    echo "${exe:-code}"
+    find ~/.vscode-server/bin -name code-server -type f 2>/dev/null | head -n 1
 }
 
 function code_install_extensions() {
     local executable
     executable="$(_code_server_executable)"
+    if [[ -z "$executable" || ! -x "$executable" ]]; then
+        return 1
+    fi
     local installed
     installed="$("$executable" --list-extensions 2>/dev/null)"
     for ext in "$@"; do
@@ -73,30 +77,26 @@ function code_install_extensions_from_txt() {
 }
 
 function _code_client_executable() {
-    local found
-    found=$(find "/mnt/c/Program Files/Microsoft VS Code/bin" "/mnt/c/Program Files (x86)/Microsoft VS Code/bin" "$LOCALAPPDATA/Programs/Microsoft VS Code/bin" -maxdepth 1 -name "code" -type f 2>/dev/null | head -n 1)
-    if [[ -n "$found" && -x "$found" ]]; then
-        echo "$found"
-        return 0
-    fi
-    if [[ -n "$CODE_EXECUTABLE" && -x "$CODE_EXECUTABLE" ]]; then
-        echo "$CODE_EXECUTABLE"
-        return 0
-    fi
-    if type -p code.cmd &>/dev/null; then
-        echo "code.cmd"
-        return 0
-    fi
-    if type -p code &>/dev/null; then
-        echo "code"
-        return 0
-    fi
+    local candidates=(
+        "/usr/bin/code"
+        "/usr/local/bin/code"
+        "/snap/bin/code"
+        "/usr/share/code/bin/code"
+    )
+    for found in "${candidates[@]}"; do
+        if [[ -n "$found" && -x "$found" ]]; then
+            echo "$found"
+            return 0
+        fi
+    done
+    return 1
 }
 
 function code_alias_to_auto_open_wsl() {
     local executable="$(_code_client_executable)"
-    executable="${executable:-code}"
-    alias code="_wsl_auto_open '$executable'"
+    if [[ -n "$executable" ]]; then
+        alias code="_wsl_auto_open '$executable'"
+    fi
 }
 
 # -- antigravity-ide --
@@ -107,15 +107,17 @@ function _antigravity_ide_client_executable() {
         return 0
     fi
     local found
-    found=$(find /mnt/c/Users -maxdepth 5 -path "*/AppData/Local/Programs/Antigravity IDE/bin/antigravity-ide" -type f 2>/dev/null | head -n 1)
+    found=$(find "/mnt/c/Program Files/Antigravity IDE/bin" "/mnt/c/Program Files (x86)/Antigravity IDE/bin" -maxdepth 1 -name "antigravity-ide" -type f 2>/dev/null | head -n 1)
     if [[ -n "$found" && -x "$found" ]]; then
         echo "$found"
         return 0
     fi
-    if type -p antigravity-ide &>/dev/null; then
-        echo "antigravity-ide"
+    found=$(ls -d /mnt/c/Users/*/AppData/Local/Programs/Antigravity\ IDE/bin/antigravity-ide 2>/dev/null | head -n 1)
+    if [[ -n "$found" && -x "$found" ]]; then
+        echo "$found"
         return 0
     fi
+    return 1
 }
 
 function _antigravity_ide_server_executable() {
@@ -153,6 +155,7 @@ function antigravity_ide_install_extensions_from_txt() {
 
 function antigravity_ide_alias_to_auto_open_wsl() {
     local executable="$(_antigravity_ide_client_executable)"
-    executable="${executable:-antigravity-ide}"
-    alias antigravity-ide="_wsl_auto_open '$executable'"
+    if [[ -n "$executable" ]]; then
+        alias antigravity-ide="_wsl_auto_open '$executable'"
+    fi
 }

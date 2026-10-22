@@ -4,6 +4,9 @@ function _win_wsl_auto {
         [string]$folder_path = (Get-Location).ProviderPath,
         [string[]]$extra_args
     )
+    if ([string]::IsNullOrWhiteSpace($executable)) {
+        return
+    }
     if ([string]::IsNullOrWhiteSpace($folder_path)) {
         $folder_path = (Get-Location).ProviderPath
     }
@@ -47,10 +50,17 @@ function _win_wsl_auto {
 # -- code --
 
 function _code_get_executable {
-    if ($env:CODE_EXECUTABLE) { return $env:CODE_EXECUTABLE }
-    $found = (Get-Command code -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source
-    if ($found) { return $found }
-    return "code"
+    $candidates = @(
+        "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd",
+        "$env:ProgramFiles\Microsoft VS Code\bin\code.cmd",
+        "${env:ProgramFiles(x86)}\Microsoft VS Code\bin\code.cmd"
+    )
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+            return $candidate
+        }
+    }
+    return $null
 }
 
 function code_install_extensions {
@@ -58,6 +68,9 @@ function code_install_extensions {
         [Parameter(Mandatory = $true, ValueFromPipeline = $true)] [string[]]$extensions
     )
     $executable = _code_get_executable
+    if (-not $executable) {
+        return
+    }
     $installed = @(& $executable --list-extensions)
     foreach ($ext in $extensions) {
         if ($installed -notcontains $ext) {
@@ -81,11 +94,17 @@ function code_wsl_auto {
         [Parameter(ValueFromRemainingArguments = $true)] [string[]]$extra_args
     )
     $executable = _code_get_executable
+    if (-not $executable) {
+        return
+    }
     _win_wsl_auto -executable $executable -folder_path $folder_path -extra_args $extra_args
 }
 
 function code_alias_to_auto_open_wsl {
-    Set-Alias -Name code -Value code_wsl_auto -Scope Global -Option AllScope -Force
+    $executable = _code_get_executable
+    if ($executable) {
+        Set-Alias -Name code -Value code_wsl_auto -Scope Global -Option AllScope -Force
+    }
 }
 
 function code_win_modern_context_menu_add {
@@ -107,13 +126,17 @@ function code_win_modern_context_menu_remove {
 # -- antigravity-ide --
 
 function _antigravity_ide_get_executable {
-    $exe = "$env:LOCALAPPDATA\Programs\Antigravity IDE\bin\antigravity-ide.cmd"
-    if (Test-Path $exe) { return $exe }
-    $exe = "$env:LOCALAPPDATA\Programs\Antigravity IDE\Antigravity IDE.exe"
-    if (Test-Path $exe) { return $exe }
-    $found = (Get-Command antigravity-ide -ErrorAction SilentlyContinue | Select-Object -First 1).Source
-    if ($found) { return $found }
-    return "antigravity-ide"
+    $candidates = @(
+        "$env:LOCALAPPDATA\Programs\Antigravity IDE\bin\antigravity-ide.cmd",
+        "$env:ProgramFiles\Antigravity IDE\bin\antigravity-ide.cmd",
+        "${env:ProgramFiles(x86)}\Antigravity IDE\bin\antigravity-ide.cmd"
+    )
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+            return $candidate
+        }
+    }
+    return $null
 }
 
 function antigravity_ide_install_extensions {
@@ -121,6 +144,9 @@ function antigravity_ide_install_extensions {
         [Parameter(Mandatory = $true, ValueFromPipeline = $true)] [string[]]$extensions
     )
     $executable = _antigravity_ide_get_executable
+    if (-not $executable) {
+        return
+    }
     $installed = @(& $executable --list-extensions)
     foreach ($ext in $extensions) {
         if ($installed -notcontains $ext) {
@@ -144,11 +170,17 @@ function antigravity_ide_wsl_auto {
         [Parameter(ValueFromRemainingArguments = $true)] [string[]]$extra_args
     )
     $executable = _antigravity_ide_get_executable
+    if (-not $executable) {
+        return
+    }
     _win_wsl_auto -executable $executable -folder_path $folder_path -extra_args $extra_args
 }
 
 function antigravity_ide_alias_to_auto_open_wsl {
-    Set-Alias -Name antigravity-ide -Value antigravity_ide_wsl_auto -Scope Global -Option AllScope -Force
+    $executable = _antigravity_ide_get_executable
+    if ($executable) {
+        Set-Alias -Name antigravity-ide -Value antigravity_ide_wsl_auto -Scope Global -Option AllScope -Force
+    }
 }
 
 function antigravity_ide_win_modern_context_menu_add {
