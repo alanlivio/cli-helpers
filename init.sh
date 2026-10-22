@@ -7,7 +7,7 @@ alias bashrc_reload='source $HOME/.bashrc'
 # -- load os/<name>.bash files --
 
 if [[ -n $WSL_DISTRO_NAME ]]; then
-    source "$HELPERS_DIR/os/wsl.bash"
+    source "$HELPERS_DIR/os/ubu_wsl.bash"
 fi
 if [[ $OSTYPE == linux* && -f '/etc/lsb-release' ]]; then
     source "$HELPERS_DIR/os/ubu.bash"
