@@ -8,7 +8,6 @@ function my_declutter() {
 
 function my_software() {
     log_msg "# install packages"
-    winget_install Git.Git
     win_install_python
 }
 

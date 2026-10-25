@@ -918,20 +918,32 @@ class MainWindow(fluentqt.Window):
         )
 
     def install_git(self):
-        self.add_output("Starting Git installation via winget...")
+        if sys.platform != "win32":
+            self.add_output("Git installation via this script is only supported on Windows.")
+            return
+
+        helpers_path = self.get_cli_helpers_path()
+        script_path = (
+            os.path.join(helpers_path, "install-git.ps1")
+            if helpers_path
+            else os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "install-git.ps1"))
+        )
+
+        if not os.path.isfile(script_path):
+            self.add_output(f"Script not found: {script_path}")
+            return
+
+        self.add_output(f"Starting Git installation using {script_path}...")
+        ps_exe = self.get_powershell_executable()
         args = [
-            "install",
-            "--id",
-            "Git.Git",
-            "-e",
-            "--source",
-            "winget",
-            "--accept-package-agreements",
-            "--accept-source-agreements",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            script_path,
         ]
-        winget_exe = self.get_winget_executable()
         self.run_worker_command(
-            winget_exe,
+            ps_exe,
             args,
             status_msg="Installing Git...",
             on_success_msg="Git installation completed.",
