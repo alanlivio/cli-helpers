@@ -9,7 +9,7 @@ function my_declutter() {
 function my_software() {
     log_msg "# install packages"
     winget_install Git.Git
-    winget_install Python.Python.3.13 --override "/passive PrependPath=1 Include_doc=0 Include_tcltk=0 Include_test=0 Include_pip=1 Include_launcher=1"
+    win_install_python
 }
 
 function my_dotfiles_and_update() {
@@ -488,6 +488,10 @@ function win_install_node() {
     $url = "https://nodejs.org/dist/v$version/node-v$version-win-$arch.zip"
     zip_download_extract $url "$env:LOCALAPPDATA\Programs\nodejs"
     win_path_add "$env:LOCALAPPDATA\Programs\nodejs\node-v$version-win-$arch\"
+}
+
+function win_install_python() {
+    winget_install Python.Python.3.13 --override "/passive PrependPath=1 Include_doc=0 Include_tcltk=0 Include_test=0 Include_pip=1 Include_launcher=0"
 }
 
 function win_install_latex() {
