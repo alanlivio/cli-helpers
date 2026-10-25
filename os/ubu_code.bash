@@ -89,6 +89,23 @@ function _code_client_executable() {
             return 0
         fi
     done
+    if [[ -n "$WSL_DISTRO_NAME" || -n "$WSL_INTEROP" ]]; then
+        if [[ -n "$LOCALAPPDATA" && -x "$LOCALAPPDATA/Programs/Microsoft VS Code/bin/code" ]]; then
+            echo "$LOCALAPPDATA/Programs/Microsoft VS Code/bin/code"
+            return 0
+        fi
+        local found
+        found=$(find "/mnt/c/Program Files/Microsoft VS Code/bin" "/mnt/c/Program Files (x86)/Microsoft VS Code/bin" -maxdepth 1 -name "code" -type f 2>/dev/null | head -n 1)
+        if [[ -n "$found" && -x "$found" ]]; then
+            echo "$found"
+            return 0
+        fi
+        found=$(find /mnt/c/Users/*/AppData/Local/Programs/Microsoft\ VS\ Code/bin -maxdepth 1 -name "code" -type f 2>/dev/null | head -n 1)
+        if [[ -n "$found" && -x "$found" ]]; then
+            echo "$found"
+            return 0
+        fi
+    fi
     return 1
 }
 
@@ -102,20 +119,34 @@ function code_alias_to_auto_open_wsl() {
 # -- antigravity-ide --
 
 function _antigravity_ide_client_executable() {
-    if [[ -n "$LOCALAPPDATA" && -x "$LOCALAPPDATA/Programs/Antigravity IDE/bin/antigravity-ide" ]]; then
-        echo "$LOCALAPPDATA/Programs/Antigravity IDE/bin/antigravity-ide"
-        return 0
-    fi
-    local found
-    found=$(find "/mnt/c/Program Files/Antigravity IDE/bin" "/mnt/c/Program Files (x86)/Antigravity IDE/bin" -maxdepth 1 -name "antigravity-ide" -type f 2>/dev/null | head -n 1)
-    if [[ -n "$found" && -x "$found" ]]; then
-        echo "$found"
-        return 0
-    fi
-    found=$(ls -d /mnt/c/Users/*/AppData/Local/Programs/Antigravity\ IDE/bin/antigravity-ide 2>/dev/null | head -n 1)
-    if [[ -n "$found" && -x "$found" ]]; then
-        echo "$found"
-        return 0
+    local candidates=(
+        "/usr/bin/antigravity-ide"
+        "/usr/local/bin/antigravity-ide"
+        "/snap/bin/antigravity-ide"
+        "/usr/share/antigravity-ide/bin/antigravity-ide"
+    )
+    for found in "${candidates[@]}"; do
+        if [[ -n "$found" && -x "$found" ]]; then
+            echo "$found"
+            return 0
+        fi
+    done
+    if [[ -n "$WSL_DISTRO_NAME" || -n "$WSL_INTEROP" ]]; then
+        if [[ -n "$LOCALAPPDATA" && -x "$LOCALAPPDATA/Programs/Antigravity IDE/bin/antigravity-ide" ]]; then
+            echo "$LOCALAPPDATA/Programs/Antigravity IDE/bin/antigravity-ide"
+            return 0
+        fi
+        local found
+        found=$(find "/mnt/c/Program Files/Antigravity IDE/bin" "/mnt/c/Program Files (x86)/Antigravity IDE/bin" -maxdepth 1 -name "antigravity-ide" -type f 2>/dev/null | head -n 1)
+        if [[ -n "$found" && -x "$found" ]]; then
+            echo "$found"
+            return 0
+        fi
+        found=$(find /mnt/c/Users/*/AppData/Local/Programs/Antigravity\ IDE/bin -maxdepth 1 -name "antigravity-ide" -type f 2>/dev/null | head -n 1)
+        if [[ -n "$found" && -x "$found" ]]; then
+            echo "$found"
+            return 0
+        fi
     fi
     return 1
 }
