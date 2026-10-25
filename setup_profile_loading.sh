@@ -4,7 +4,11 @@ HELPERS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd 
 sourceLine="source $HELPERS_DIR/init.sh"
 
 if ! grep -q "^$sourceLine\\b" ~/.bashrc; then
-    echo "$sourceLine" >> ~/.bashrc
+    {
+        echo "# Added by cli-helpers"
+        echo "$sourceLine"
+        echo ""
+    } >> ~/.bashrc
     log_msg "'$sourceLine' added to ~/.bashrc"
 else
     log_msg "'$sourceLine' already exists at ~/.bashrc"
