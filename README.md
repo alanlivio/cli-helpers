@@ -31,72 +31,39 @@ flowchart LR
 
 **From PowerShell:**
 
-```mermaid
-flowchart LR
-    psprofile["$PROFILE"]
-    ps-init["init.ps1"]
-    %% sh-init["init.sh"]
-    program-dependent["
-        programs/[program].ps1
-        ...
-    "]
-    OS-dependent["
-        os/win.psm1
-        os/win_code.psm1
-        os/ubu.ps1
-        ...
-    "]
-    dotfiles["
-        ../dotfiles/init.ps1
-    "]
+## Ubuntu Setup
 
-    psprofile--> |"loads"| ps-init
-    ps-init --> |"1: loads matching OS script"| OS-dependent
-    ps-init --> |"2: loads if program installed"| program-dependent
-    ps-init --> |"3: loads dotfiles if present"| dotfiles
-```
-
-## Bash Setup
-
-You can use the Bash commands below to fetch, install, and setup `cli-helpers` to be loaded in your `.bashrc`:
+You can use the Bash commands below to fetch, install, and set up `cli-helpers` to be loaded in your `.bashrc`:
 
 ```bash
 git clone https://github.com/alanlivio/cli-helpers ~/src/cli-helpers
-. ~/src/cli-helpers/setup_profile_loading.sh
+. ~/src/cli-helpers/setup_profile.sh
 ```
 
-## PowerShell Setup
+## Windows Setup
 
-You can use the PowerShell commands below to fetch, install, and setup `cli-helpers` to be loaded in your `profile.ps1`:
+If WinGet or Git is not installed, run [`setup_winget_git.ps1`](setup_winget_git.ps1) or download the [`cli-helpers` GUI](https://github.com/alanlivio/cli-helpers/releases/latest/download/cli-helpers.exe).
+
+To set up `cli-helpers` to be loaded in your `profile.ps1` by calling [`setup_profile.ps1`](setup_profile.ps1):
 
 ```powershell
-git clone https://github.com/alanlivio/cli-helpers $env:USERPROFILE\src\cli-helpers
-& $env:USERPROFILE\src\cli-helpers\setup_profile_loading.ps1
+git clone https://github.com/alanlivio/cli-helpers ~\src\cli-helpers
+& ~\src\cli-helpers\setup_profile.ps1
 ```
 
-## Dotfiles Integration
+## `dotfiles` Integration
 
-`cli-helpers` is designed to be paired with a personal dotfiles repository located at the same directory level (for example, `~/src/dotfiles` alongside `~/src/cli-helpers` on Linux, or `$env:USERPROFILE\src\dotfiles` alongside `$env:USERPROFILE\src\cli-helpers` on Windows).
+`cli-helpers` is designed to be paired with a personal and private dotfiles repository located at the same directory level (for example, `~/src/dotfiles` alongside `~/src/cli-helpers`).
 
-`cli-helpers` automatically loads the companion dotfiles repository via `dotfiles/init.sh` or `dotfiles/init.ps1` at the end of its initialization sequence. This allows personal dotfiles to immediately use loaded helpers and override `my_*` lifecycle helpers without needing to manually import `cli-helpers`.
+`cli-helpers` automatically loads the companion dotfiles repository via `dotfiles/init.sh` or `dotfiles/init.ps1` at the end of its initialization. This allows personal dotfiles to immediately use loaded helpers and override `my_*` lifecycle helpers without needing to manually import `cli-helpers`.
 
 ## `my_*` Helpers
 
 `cli-helpers` provides baseline implementations for common lifecycle helpers in [`os/ubu.bash`](os/ubu.bash) and [`os/win.psm1`](os/win.psm1):
 
-- `my_declutter`: Removes unused packages/shortcuts and hides dotfiles in the user home directory (implemented in [`os/ubu.bash`](os/ubu.bash) and [`os/win.psm1`](os/win.psm1)).
-- `my_software`: Installs baseline dependencies such as Git and Python (implemented in [`os/ubu.bash`](os/ubu.bash) and [`os/win.psm1`](os/win.psm1)).
-- `my_dotfiles_and_update`: Pulls git updates for the dotfiles repository and upgrades system packages (`winget upgrade` on Windows, `apt update && apt upgrade` on Ubuntu) (implemented in [`os/ubu.bash`](os/ubu.bash) and [`os/win.psm1`](os/win.psm1)).
-
-These helpers can be used as-is, or overloaded in your personal dotfiles repository (`dotfiles/init.sh` or `dotfiles/init.ps1`) to include personal toolchains, application configurations, and directory symlinks.
-
-## Running Tests
-
-This project includes automated tests to ensure all subfiles can be safely loaded without syntax errors. To run them, execute:
-
-```bash
-python -m unittest discover -s tests
-```
+- `my_declutter`: Removes unused packages/shortcuts and hides dotfiles in the user home directory.
+- `my_software`: Installs baseline dependencies such as Git and Python.
+- `my_dotfiles_and_update`: Pulls git updates for the dotfiles repository and upgrades system packages (`winget upgrade` on Windows, `apt update && apt upgrade` on Ubuntu).
 
 ## References
 
