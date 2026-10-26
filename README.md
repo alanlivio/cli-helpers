@@ -4,32 +4,11 @@
 
 **From Bash:**
 
-```mermaid
-flowchart LR
-    bashrc[".bashrc"]
-    %% ps-init["init.ps1"]
-    sh-init["init.sh"]
-    program-dependent["
-        programs/[program].bash
-        ...
-    "]
-    OS-dependent["
-        os/ubu_wsl.bash
-        os/ubu_code.bash
-        os/ubu.bash
-        ...
-    "]
-    dotfiles["
-        ../dotfiles/init.sh
-    "]
-    
-    bashrc --> |"loads"| sh-init
-    sh-init --> |"1: loads matching OS script"| OS-dependent
-    sh-init --> |"2: loads if program installed"| program-dependent
-    sh-init --> |"3: loads dotfiles if present"| dotfiles
-```
+![Bash Flow](docs/bash_flow.svg)
 
 **From PowerShell:**
+
+![PowerShell Flow](docs/powershell_flow.svg)
 
 ## Ubuntu Setup
 

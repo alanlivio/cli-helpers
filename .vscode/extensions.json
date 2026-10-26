@@ -1,8 +1,8 @@
 {
     "recommendations": [
         "davidanson.vscode-markdownlint",
-        "mermaidchart.vscode-mermaid-chart",
         "ms-vscode.powershell",
-        "foxundermoon.shell-format"
+        "foxundermoon.shell-format",
+        "terrastruct.d2"
     ]
 }

@@ -2,7 +2,7 @@ MAKEFLAGS += -s --no-print-directory
 .DEFAULT_GOAL := help
 $(if $(filter Windows_NT,$(OS)),$(if $(shell where printf 2>nul),,$(error coreutils is not installed. Please run: winget install coreutils)))
 
-.PHONY: help deps run gui build winget-pkg winget-submit release clean test icons
+.PHONY: help deps run gui build winget-pkg winget-submit release clean test icons docs
 
 help:
 	@printf "%s\n" \
@@ -17,7 +17,9 @@ help:
 		"  winget-submit  Submit package manifest to winget-pkgs via wingetcreate" \
 		"  release        Publish release and Winget manifest to GitHub via gh" \
 		"  clean          Clean build artifacts" \
-		"  test           Run unit tests"
+		"  test           Run unit tests" \
+		"  icons          Compile GUI icons" \
+		"  docs           Compile D2 documentation diagrams"
 
 deps:
 	python -m pip install -e ".[dev]"
@@ -29,16 +31,19 @@ gui:
 	python -m cli_helpers
 
 clean:
-	rm -rf dist build ./*.egg-info ./*.spec cli_helpers/resources
+	rm -rf dist build ./*.egg-info ./*.spec cli_helpers/resources/icon.ico cli_helpers/resources/icon.png cli_helpers/resources/icon.svg
 
 D2 ?= d2
 
 icons:
-	mkdir -p cli_helpers/resources
 	$(D2) --pad 0 cli_helpers/icon.d2 cli_helpers/resources/icon.svg
 	node -e "const fs=require('fs'),p='cli_helpers/resources/icon.svg';fs.writeFileSync(p,fs.readFileSync(p,'utf8').replace(/font-family: [^;]+;/, 'font-family: Consolas, monospace; font-weight: bold;'))"
 	npx --yes sharp-cli -i cli_helpers/resources/icon.svg -o cli_helpers/resources/icon.png resize 256 256
 	npx --yes icon-gen -i cli_helpers/resources/icon.svg -o cli_helpers/resources --ico --ico-name icon -r
+
+docs:
+	$(D2) --pad 0 docs/bash_flow.d2 docs/bash_flow.svg
+	$(D2) --pad 0 docs/powershell_flow.d2 docs/powershell_flow.svg
 
 build: icons
 	pyinstaller --noconfirm --clean --onefile --windowed --paths . --collect-all fluentqt --collect-all cli_helpers --add-data "cli_helpers/resources:cli_helpers/resources" --icon "cli_helpers/resources/icon.ico" --version-file version_info.txt --name cli-helpers cli_helpers/__main__.py
@@ -46,7 +51,6 @@ build: icons
 VERSION ?= $(shell python -c "from cli_helpers.version import __version__; print(__version__)")
 
 winget-pkg: build
-	mkdir -p dist/winget
 	SHA256=$$(sha256sum dist/cli-helpers.exe | cut -b 1-64 | tr 'a-z' 'A-Z'); \
 	sed -e "s/@VERSION@/$(VERSION)/g" packaging/alanlivio.clihelpers.yaml.in > dist/winget/alanlivio.clihelpers.yaml; \
 	sed -e "s/@VERSION@/$(VERSION)/g" -e "s/@SHA256@/$$SHA256/g" packaging/alanlivio.clihelpers.installer.yaml.in > dist/winget/alanlivio.clihelpers.installer.yaml; \

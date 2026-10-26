@@ -1,0 +1,41 @@
+vars: {
+  d2-config: {
+    theme-id: 1
+    sketch: true
+    layout-engine: elk
+    pad: 0
+  }
+}
+
+direction: right
+
+psprofile: "\$PROFILE" {
+  shape: rectangle
+  icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/powershell/powershell-original.svg"
+}
+
+ps_init: "init.ps1" {
+  shape: rectangle
+  icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/powershell/powershell-original.svg"
+  style: {
+    stroke-width: 2
+    bold: true
+  }
+}
+
+os_dependent: "os/win.psm1\nos/win_code.psm1\nos/ubu.ps1\n..." {
+  shape: rectangle
+}
+
+program_dependent: "programs/[program].ps1\n..." {
+  shape: rectangle
+}
+
+dotfiles: "../dotfiles/init.ps1" {
+  shape: rectangle
+}
+
+psprofile -> ps_init: loads
+ps_init -> os_dependent: "1: loads matching OS script"
+ps_init -> program_dependent: "2: loads if program installed"
+ps_init -> dotfiles: "3: loads dotfiles if present"

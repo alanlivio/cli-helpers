@@ -1,0 +1,41 @@
+vars: {
+  d2-config: {
+    theme-id: 1
+    sketch: true
+    layout-engine: elk
+    pad: 0
+  }
+}
+
+direction: right
+
+bashrc: ".bashrc" {
+  shape: rectangle
+  icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/bash/bash-original.svg"
+}
+
+sh_init: "init.sh" {
+  shape: rectangle
+  icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/bash/bash-original.svg"
+  style: {
+    stroke-width: 2
+    bold: true
+  }
+}
+
+os_dependent: "os/ubu_wsl.bash\nos/ubu_code.bash\nos/ubu.bash\n..." {
+  shape: rectangle
+}
+
+program_dependent: "programs/[program].bash\n..." {
+  shape: rectangle
+}
+
+dotfiles: "../dotfiles/init.sh" {
+  shape: rectangle
+}
+
+bashrc -> sh_init: loads
+sh_init -> os_dependent: "1: loads matching OS script"
+sh_init -> program_dependent: "2: loads if program installed"
+sh_init -> dotfiles: "3: loads dotfiles if present"
