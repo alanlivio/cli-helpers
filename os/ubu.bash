@@ -87,7 +87,7 @@ function kill_from_search() {
     local search="$1"
     local sig="${2:-}"
     local pids
-    pids=$(ps -aux | grep "$search" | grep -v grep | awk '{print $2}')
+    pids=$(pgrep -f "$search")
     if [[ -n "$pids" ]]; then
         kill ${sig:+"$sig"} $pids
     fi
