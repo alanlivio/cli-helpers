@@ -28,10 +28,6 @@ function my_dotfiles_and_update() {
 
 # -- winget/update --
 
-function winget_enable() {
-    Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe
-}
-
 function winget_upgrade() {
     log_msg "winget update"
     winget upgrade --all --accept-package-agreements --accept-source-agreements --scope user
@@ -357,31 +353,6 @@ function github_latest_release_url($repo, $pattern = "*") {
     return $asset.browser_download_url
 }
 
-function win_install_winget_latest() {
-    if (Get-Command winget -ErrorAction SilentlyContinue) { return }
-    try {
-        winget_enable
-        if (Get-Command winget -ErrorAction SilentlyContinue) { return }
-    } catch {}
-
-    $url = github_latest_release_url "microsoft/winget-cli" "*Microsoft.DesktopAppInstaller*.msixbundle"
-    if (-not $url) { return }
-
-    $bundle_file = Join-Path $env:TEMP ([System.IO.Path]::GetFileName($url))
-    $web_client = New-Object System.Net.WebClient
-    $web_client.DownloadFile($url, $bundle_file)
-    try {
-        Add-AppxPackage -Path $bundle_file
-    } catch {
-        log_error "Failed to install WinGet package"
-    }
-    Remove-Item -Force $bundle_file -ErrorAction SilentlyContinue
-
-    $windows_apps_path = "$env:LOCALAPPDATA\Microsoft\WindowsApps"
-    if (Test-Path $windows_apps_path) {
-        win_path_add $windows_apps_path
-    }
-}
 
 function win_install_docker() {
     if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping"; return }

@@ -294,8 +294,25 @@ class TestGui(unittest.TestCase):
                 self.assertEqual(len(called_args), 1)
                 cmd_args, kwargs = called_args[0]
                 self.assertTrue(cmd_args[0].lower().endswith(("powershell.exe", "pwsh.exe", "powershell", "pwsh")))
+                self.assertIn("setup_winget_git.ps1", cmd_args[1][-1])
+                self.assertIn("-winget_only", cmd_args[1][-1])
                 self.assertIn("Installing WinGet...", kwargs.get("status_msg", ""))
                 self.assertIn("WinGet installation completed.", kwargs.get("on_success_msg", ""))
+
+    def test_install_git_delegation(self):
+        called_args = []
+        with patch.object(
+            self.window, "run_worker_command", side_effect=lambda *args, **kwargs: called_args.append((args, kwargs))
+        ):
+            with patch("sys.platform", "win32"):
+                self.window.install_git()
+                self.assertEqual(len(called_args), 1)
+                cmd_args, kwargs = called_args[0]
+                self.assertTrue(cmd_args[0].lower().endswith(("powershell.exe", "pwsh.exe", "powershell", "pwsh")))
+                self.assertIn("setup_winget_git.ps1", cmd_args[1][-1])
+                self.assertIn("-git_only", cmd_args[1][-1])
+                self.assertIn("Installing Git...", kwargs.get("status_msg", ""))
+                self.assertIn("Git installation completed.", kwargs.get("on_success_msg", ""))
 
     def test_status_check_worker_winget_field(self):
         worker = StatusCheckWorker(None, None)

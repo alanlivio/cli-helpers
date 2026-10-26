@@ -41,7 +41,10 @@ def get_resource_dir() -> Path:
             p = Path(meipass) / sub
             if p.is_dir():
                 return p
-    for base in (Path(__file__).resolve().parent, Path(sys.executable).resolve().parent):
+    for base in (
+        Path(__file__).resolve().parent,
+        Path(sys.executable).resolve().parent,
+    ):
         p = base / "resources"
         if p.is_dir():
             return p
@@ -52,8 +55,15 @@ def get_app_icon() -> QIcon:
     dirs = []
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
-        dirs.extend([Path(meipass) / "cli_helpers" / "resources", Path(meipass) / "resources"])
-    dirs.extend([Path(__file__).resolve().parent / "resources", Path(sys.executable).resolve().parent / "resources"])
+        dirs.extend(
+            [Path(meipass) / "cli_helpers" / "resources", Path(meipass) / "resources"]
+        )
+    dirs.extend(
+        [
+            Path(__file__).resolve().parent / "resources",
+            Path(sys.executable).resolve().parent / "resources",
+        ]
+    )
 
     for d in dirs:
         for name in ("icon.ico", "icon.png", "icon.svg"):
@@ -306,33 +316,47 @@ class MainWindow(fluentqt.Window):
         icon = get_app_icon()
         if not icon.isNull():
             self.setWindowIcon(icon)
-            if self.native_title_bar and hasattr(self.native_title_bar, "setWindowIcon"):
+            if self.native_title_bar and hasattr(
+                self.native_title_bar, "setWindowIcon"
+            ):
                 self.native_title_bar.setWindowIcon(icon)
 
         if self.native_title_bar:
             self.native_title_bar.setWindowTitle("CLI Helpers")
             self.title_bar_container = QWidget(self.native_title_bar)
-            self.title_bar_container.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            self.title_bar_container.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents
+            )
             self.title_bar_container.move(14, 0)
             self.title_bar_container.setFixedHeight(36)
 
             tb_layout = QHBoxLayout(self.title_bar_container)
             tb_layout.setContentsMargins(0, 0, 0, 0)
             tb_layout.setSpacing(8)
-            tb_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            tb_layout.setAlignment(
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            )
 
             if not icon.isNull():
                 self.title_icon_widget = QLabel(self.title_bar_container)
-                self.title_icon_widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+                self.title_icon_widget.setAttribute(
+                    Qt.WidgetAttribute.WA_TransparentForMouseEvents
+                )
                 self.title_icon_widget.setPixmap(icon.pixmap(16, 16))
                 tb_layout.addWidget(self.title_icon_widget)
 
             self.title_label_widget = QLabel("CLI Helpers", self.title_bar_container)
-            self.title_label_widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-            self.title_label_widget.setStyleSheet("font-size: 12px; font-weight: 500; color: #ffffff;")
+            self.title_label_widget.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents
+            )
+            self.title_label_widget.setStyleSheet(
+                "font-size: 12px; font-weight: 500; color: #ffffff;"
+            )
             tb_layout.addWidget(self.title_label_widget)
 
-        self.title_bar = TitleBarWrapper(self.native_title_bar, "CLI Helpers", self.title_label_widget)
+        self.title_bar = TitleBarWrapper(
+            self.native_title_bar, "CLI Helpers", self.title_label_widget
+        )
 
         if sys.platform == "win32":
             try:
@@ -409,7 +433,9 @@ class MainWindow(fluentqt.Window):
         self.tb_helpers_user = LineEdit()
         self.tb_helpers_user.setPlaceholderText("USER")
         self.tb_helpers_user.setFixedWidth(100)
-        self.tb_helpers_user.setToolTip("cli-helpers will be downloaded from https://github.com/<USER>/cli-helpers")
+        self.tb_helpers_user.setToolTip(
+            "cli-helpers will be downloaded from https://github.com/<USER>/cli-helpers"
+        )
         self.helpers_repo_suffix = CaptionLabel("/cli-helpers")
         self.btn_install_helpers = PushButton("Clone helpers")
         self.btn_install_helpers.setFixedWidth(125)
@@ -432,7 +458,9 @@ class MainWindow(fluentqt.Window):
         self.tb_username = LineEdit()
         self.tb_username.setPlaceholderText("USER")
         self.tb_username.setFixedWidth(100)
-        self.tb_username.setToolTip("Dotfiles will be downloaded from https://github.com/<USER>/dotfiles")
+        self.tb_username.setToolTip(
+            "Dotfiles will be downloaded from https://github.com/<USER>/dotfiles"
+        )
         self.dotfiles_repo_suffix = CaptionLabel("/dotfiles")
         self.btn_clone_dotfiles = PushButton("Clone dotfiles")
         self.btn_clone_dotfiles.setFixedWidth(125)
@@ -596,12 +624,8 @@ class MainWindow(fluentqt.Window):
         )
         self.btn_install_helpers.setEnabled(not busy)
         self.btn_clone_dotfiles.setEnabled(not busy)
-        self.btn_run_task.setEnabled(
-            not busy and self.task_selector.count() > 0
-        )
-        self.btn_run_my_task.setEnabled(
-            not busy and self.my_task_selector.count() > 0
-        )
+        self.btn_run_task.setEnabled(not busy and self.task_selector.count() > 0)
+        self.btn_run_my_task.setEnabled(not busy and self.my_task_selector.count() > 0)
         self.btn_run_recent_task.setEnabled(
             not busy and self.recent_task_selector.count() > 0
         )
@@ -803,7 +827,9 @@ class MainWindow(fluentqt.Window):
         else:
             self.btn_run_my_task.setEnabled(False)
 
-        self.add_output(f"Loaded {len(tasks)} profile tasks ({len(my_tasks)} my_ helpers).")
+        self.add_output(
+            f"Loaded {len(tasks)} profile tasks ({len(my_tasks)} my_ helpers)."
+        )
         self.set_busy(False, "Ready")
 
     def refresh_all(self):
@@ -811,7 +837,9 @@ class MainWindow(fluentqt.Window):
         self.update_setup_status()
         self.initialize_tasks()
 
-    def run_worker_command(self, cmd, args, cwd=None, status_msg=None, on_success_msg=None):
+    def run_worker_command(
+        self, cmd, args, cwd=None, status_msg=None, on_success_msg=None
+    ):
         self.set_busy(True, status_msg or "Executing command...")
         self._active_worker = HelperWorker(cmd, args, cwd)
         self._active_worker.output_line.connect(self.add_output)
@@ -828,87 +856,61 @@ class MainWindow(fluentqt.Window):
         self._active_worker.finished.connect(on_finished)
         self._active_worker.start()
 
+    def _get_setup_winget_git_path(self):
+        candidates = []
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            candidates.append(os.path.join(meipass, "setup_winget_git.ps1"))
+            candidates.append(
+                os.path.join(
+                    meipass, "cli_helpers", "resources", "setup_winget_git.ps1"
+                )
+            )
+        candidates.extend(
+            [
+                os.path.abspath(
+                    os.path.join(
+                        os.path.dirname(__file__), "..", "setup_winget_git.ps1"
+                    )
+                ),
+                os.path.abspath(
+                    os.path.join(os.path.dirname(__file__), "setup_winget_git.ps1")
+                ),
+                os.path.abspath(
+                    os.path.join(
+                        os.path.dirname(__file__), "resources", "setup_winget_git.ps1"
+                    )
+                ),
+            ]
+        )
+        helpers_path = self.get_cli_helpers_path()
+        if helpers_path:
+            candidates.append(os.path.join(helpers_path, "setup_winget_git.ps1"))
+        for c in candidates:
+            if c and os.path.isfile(c):
+                return c
+        return None
+
     def install_winget(self):
         if sys.platform != "win32":
             self.add_output("WinGet installation is only supported on Windows.")
             return
 
-        self.add_output("Starting WinGet installation from GitHub release msixbundle...")
+        setup_path = self._get_setup_winget_git_path()
+        if not setup_path:
+            self.add_output("setup_winget_git.ps1 script not found.")
+            return
+
+        self.add_output("Starting WinGet installation...")
         ps_exe = self.get_powershell_executable()
-        script = (
-            "$ProgressPreference = 'SilentlyContinue'; "
-            "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; "
-            "try { "
-            "Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -ErrorAction SilentlyContinue; "
-            "} catch {}; "
-            "if (Get-Command winget -ErrorAction SilentlyContinue) { "
-            "Write-Host 'WinGet is already installed.'; "
-            "exit 0; "
-            "}; "
-            "$url = 'https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'; "
-            "try { "
-            "$api = Invoke-RestMethod -Uri 'https://api.github.com/repos/microsoft/winget-cli/releases/latest' -Headers @{'Accept'='application/vnd.github.v3+json'} -ErrorAction Stop; "
-            "$asset = $api.assets | Where-Object { $_.name -like '*Microsoft.DesktopAppInstaller*.msixbundle' } | Select-Object -First 1; "
-            "if ($asset -and $asset.browser_download_url) { $url = $asset.browser_download_url }; "
-            "} catch {}; "
-            "$bundle = Join-Path $env:TEMP ([System.IO.Path]::GetFileName($url)); "
-            "Write-Host ('Downloading WinGet from ' + $url + '...'); "
-            "try { "
-            "(New-Object System.Net.WebClient).DownloadFile($url, $bundle); "
-            "} catch { "
-            "Invoke-WebRequest -Uri $url -OutFile $bundle -UseBasicParsing; "
-            "}; "
-            "Write-Host ('Installing ' + $bundle + '...'); "
-            "try { "
-            "Add-AppxPackage -Path $bundle -ErrorAction Stop; "
-            "Write-Host 'WinGet package installed successfully.'; "
-            "} catch { "
-            "Write-Host 'Direct package install failed, attempting to install dependencies...'; "
-            "$depUrl = 'https://github.com/microsoft/winget-cli/releases/latest/download/DesktopAppInstaller_Dependencies.zip'; "
-            "$depZip = Join-Path $env:TEMP 'DesktopAppInstaller_Dependencies.zip'; "
-            "$depDir = Join-Path $env:TEMP 'DesktopAppInstaller_Dependencies'; "
-            "try { "
-            "(New-Object System.Net.WebClient).DownloadFile($depUrl, $depZip); "
-            "Expand-Archive -Path $depZip -DestinationPath $depDir -Force; "
-            "$arch = if ([Environment]::Is64BitOperatingSystem) { if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' } } else { 'x86' }; "
-            "$archDir = Join-Path $depDir $arch; "
-            "if (Test-Path $archDir) { "
-            "Get-ChildItem -Path $archDir -Filter '*.appx' | ForEach-Object { "
-            "Write-Host ('Installing dependency: ' + $_.Name + '...'); "
-            "Add-AppxPackage -Path $_.FullName -ErrorAction SilentlyContinue; "
-            "}; "
-            "}; "
-            "Add-AppxPackage -Path $bundle -ErrorAction Stop; "
-            "Write-Host 'WinGet package installed successfully.'; "
-            "} catch { "
-            "Write-Host ('Failed to install WinGet package: ' + $_.Exception.Message); "
-            "exit 1; "
-            "} finally { "
-            "Remove-Item -Force $depZip -ErrorAction SilentlyContinue; "
-            "Remove-Item -Recurse -Force $depDir -ErrorAction SilentlyContinue; "
-            "}; "
-            "} finally { "
-            "Remove-Item -Force $bundle -ErrorAction SilentlyContinue; "
-            "}; "
-            "$windowsApps = Join-Path $env:LOCALAPPDATA 'Microsoft\\WindowsApps'; "
-            "if (Test-Path $windowsApps) { "
-            "if ($env:PATH -notlike ('*' + $windowsApps + '*')) { $env:PATH = $windowsApps + ';' + $env:PATH }; "
-            "}; "
-            "if (Get-Command winget -ErrorAction SilentlyContinue) { "
-            "Write-Host 'WinGet verification succeeded.'; "
-            "exit 0; "
-            "} else { "
-            "Write-Host 'WinGet installed. A terminal restart may be required for PATH updates.'; "
-            "exit 0; "
-            "}"
-        )
-        escaped_script = script.replace('"', '`"')
+        escaped_path = setup_path.replace("'", "''")
+        script = f"& '{escaped_path}' -winget_only"
         args = [
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
             "-Command",
-            escaped_script,
+            script,
         ]
         self.run_worker_command(
             ps_exe,
@@ -919,28 +921,24 @@ class MainWindow(fluentqt.Window):
 
     def install_git(self):
         if sys.platform != "win32":
-            self.add_output("Git installation via this script is only supported on Windows.")
+            self.add_output("Git installation is only supported on Windows.")
             return
 
-        helpers_path = self.get_cli_helpers_path()
-        script_path = (
-            os.path.join(helpers_path, "install-git.ps1")
-            if helpers_path
-            else os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "install-git.ps1"))
-        )
-
-        if not os.path.isfile(script_path):
-            self.add_output(f"Script not found: {script_path}")
+        setup_path = self._get_setup_winget_git_path()
+        if not setup_path:
+            self.add_output("setup_winget_git.ps1 script not found.")
             return
 
-        self.add_output(f"Starting Git installation using {script_path}...")
+        self.add_output("Starting Git installation...")
         ps_exe = self.get_powershell_executable()
+        escaped_path = setup_path.replace("'", "''")
+        script = f"& '{escaped_path}' -git_only"
         args = [
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
-            "-File",
-            script_path,
+            "-Command",
+            script,
         ]
         self.run_worker_command(
             ps_exe,
@@ -1115,14 +1113,11 @@ class MainWindow(fluentqt.Window):
                 self.add_output(f">>> Completed {selected_task}")
                 self.set_busy(False, f"Finished: {selected_task}")
             else:
-                self.add_output(
-                    f">>> Task finished with exit code {exit_code}"
-                )
+                self.add_output(f">>> Task finished with exit code {exit_code}")
                 self.set_busy(False, f"Failed: {selected_task}")
 
         self._active_worker.finished.connect(on_task_finished)
         self._active_worker.start()
-
 
     def closeEvent(self, a0):
         for worker in [
@@ -1145,7 +1140,10 @@ def main():
     if sys.platform == "win32":
         try:
             import ctypes
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("alanlivio.clihelpers.gui")
+
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                "alanlivio.clihelpers.gui"
+            )
         except Exception:
             pass
 
