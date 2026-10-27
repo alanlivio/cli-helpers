@@ -277,13 +277,13 @@ function win_admin_disable_administrator() {
     net user administrator /active:no
 }
 
-function win_admin_add_current_user {
+function win_admin_current_user_add {
     if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping"; return }
     $current_user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
     net localgroup 'Administrators' $current_user /add
 }
 
-function win_admin_romove_current_user() {
+function win_admin_current_user_remove() {
     if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping"; return }
     $current_user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
     $raw = net localgroup 'Administrators'
