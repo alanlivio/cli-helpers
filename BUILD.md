@@ -1,31 +1,34 @@
-# Running the GUI
+# Building and Running
 
-## Install Dependencies
+## Development
+
+Install dependencies and run the application locally:
 
 ```powershell
 make deps
+make run-gui
 ```
 
-## Running the Application
-
-```powershell
-make run
-```
-
-## Building Executable
-
-```powershell
-make build
-```
-
-## Building WinGet Package
-
-```powershell
-make package
-```
-
-## Running Tests
+Run tests:
 
 ```powershell
 make test
+```
+
+## Packaging
+
+Build the standalone executable and WinGet package:
+
+```powershell
+make gui
+make winget-pkg
+```
+
+## Release
+
+Publish the GUI executable to GitHub and submit the WinGet package:
+
+```powershell
+make publish-gui
+make winget-pkg-submit
 ```
