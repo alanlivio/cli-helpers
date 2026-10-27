@@ -47,19 +47,11 @@ gui: icons
 VERSION ?= $(shell python -c "from cli_helpers.version import __version__; print(__version__)")
 
 winget-pkg: gui
-	SHA256=$$(sha256sum dist/cli-helpers.exe | cut -b 1-64 | tr 'a-z' 'A-Z'); \
-	sed -e "s/@VERSION@/$(VERSION)/g" packaging/alanlivio.clihelpers.yaml.in > dist/winget/alanlivio.clihelpers.yaml; \
-	sed -e "s/@VERSION@/$(VERSION)/g" -e "s/@SHA256@/$$SHA256/g" packaging/alanlivio.clihelpers.installer.yaml.in > dist/winget/alanlivio.clihelpers.installer.yaml; \
-	sed -e "s/@VERSION@/$(VERSION)/g" packaging/alanlivio.clihelpers.locale.en-US.yaml.in > dist/winget/alanlivio.clihelpers.locale.en-US.yaml
-	winget validate dist/winget
+	python packaging/winget_pkg.py $(VERSION)
+	winget validate --manifest dist/winget
 
 winget-pkg-submit: winget-pkg
-	TOKEN=$$(gh auth token 2>/dev/null || echo ""); \
-	if [ -n "$$TOKEN" ]; then \
-		wingetcreate submit dist/winget --prtitle "New package: alanlivio.clihelpers version $(VERSION)" --token "$$TOKEN"; \
-	else \
-		wingetcreate submit dist/winget --prtitle "New package: alanlivio.clihelpers version $(VERSION)"; \
-	fi
+	python -c "import subprocess; t = subprocess.run(['gh', 'auth', 'token'], capture_output=True, text=True).stdout.strip(); cmd = ['wingetcreate', 'submit', 'dist/winget', '--prtitle', 'New package: alanlivio.clihelpers version $(VERSION)']; cmd += ['--token', t] if t else []; subprocess.run(cmd, check=True)"
 
 publish-gui: gui
 	@printf "SHA256 (exe): "
