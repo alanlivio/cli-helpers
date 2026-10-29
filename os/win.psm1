@@ -1,4 +1,4 @@
-# -- dotfiles --
+# -- my_ helpers --
 
 function my_declutter() {
     log_msg "# os declutter"
