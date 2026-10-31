@@ -13,7 +13,7 @@ function github_latest_release_url($repo, $pattern = "*") {
 }
 
 function win_path_add($add_path) {
-    if (-not (Test-Path $add_path)) { log_error "'$add_path' is not a valid path."; return }
+    if (-not (Test-Path $add_path)) { New-Item -ItemType Directory -Path $add_path | Out-Null }
     $path = [Environment]::GetEnvironmentVariable('path', 'User')
     $regex_add_path = [regex]::Escape($add_path)
     $arr_path = $path -split ';' | Where-Object { $_ -notMatch "^$regex_add_path\\?" }

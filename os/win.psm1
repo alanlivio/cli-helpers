@@ -25,8 +25,8 @@ function my_dotfiles() {
 # -- winget/update --
 
 function winget_upgrade() {
-    log_msg "winget update"
-    winget upgrade --all --accept-package-agreements --accept-source-agreements --scope user
+    log_msg "winget upgrade"
+    winget upgrade --all --accept-package-agreements --accept-source-agreements
 }
 
 function winget_install() {
