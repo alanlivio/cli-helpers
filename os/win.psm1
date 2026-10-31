@@ -42,7 +42,7 @@ function winget_install() {
 
 function winget_uninstall() {
     param ([Parameter(Mandatory = $true)][string] $pkg)
-    winget list --scope user -q $pkg | Out-Null
+    winget list -q $pkg | Out-Null
     if ($?) {
         winget uninstall $pkg
     }
