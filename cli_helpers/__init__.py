@@ -8,6 +8,10 @@ from .workers import (
     StatusCheckWorker,
     build_helper_command,
 )
+from .install_software import (
+    INSTALL_GIT,
+    INSTALL_WINGET,
+)
 from .version import __version__
 
 __all__ = [
@@ -16,6 +20,8 @@ __all__ = [
     "HelperDiscoveryWorker",
     "StatusCheckWorker",
     "build_helper_command",
+    "INSTALL_GIT",
+    "INSTALL_WINGET",
     "main",
     "__version__",
 ]

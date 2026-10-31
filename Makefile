@@ -42,7 +42,7 @@ docs:
 	$(D2) --pad 0 docs/powershell_flow.d2 docs/powershell_flow.svg
 
 gui: icons
-	pyinstaller --noconfirm --clean --onefile --windowed --paths . --collect-all fluentqt --collect-all cli_helpers --add-data "cli_helpers/resources:cli_helpers/resources" --icon "cli_helpers/resources/icon.ico" --version-file version_info.txt --name cli-helpers cli_helpers/__main__.py
+	python -m PyInstaller --noconfirm --clean --onefile --windowed --paths . --collect-all fluentqt --collect-all cli_helpers --add-data "cli_helpers/resources:cli_helpers/resources" --icon "cli_helpers/resources/icon.ico" $(if $(wildcard version_info.txt),--version-file version_info.txt) --name cli-helpers cli_helpers/__main__.py
 
 VERSION ?= $(shell python -c "from cli_helpers.version import __version__; print(__version__)")
 

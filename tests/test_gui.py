@@ -19,6 +19,8 @@ from cli_helpers.gui import (
     HelperDiscoveryWorker,
     build_helper_command,
     InfoLevel,
+    INSTALL_GIT,
+    INSTALL_WINGET,
 )
 
 
@@ -294,8 +296,7 @@ class TestGui(unittest.TestCase):
                 self.assertEqual(len(called_args), 1)
                 cmd_args, kwargs = called_args[0]
                 self.assertTrue(cmd_args[0].lower().endswith(("powershell.exe", "pwsh.exe", "powershell", "pwsh")))
-                self.assertIn("setup_winget_git.ps1", cmd_args[1][-1])
-                self.assertIn("-winget_only", cmd_args[1][-1])
+                self.assertEqual(cmd_args[1][-1], INSTALL_WINGET)
                 self.assertIn("Installing WinGet...", kwargs.get("status_msg", ""))
                 self.assertIn("WinGet installation completed.", kwargs.get("on_success_msg", ""))
 
@@ -309,8 +310,7 @@ class TestGui(unittest.TestCase):
                 self.assertEqual(len(called_args), 1)
                 cmd_args, kwargs = called_args[0]
                 self.assertTrue(cmd_args[0].lower().endswith(("powershell.exe", "pwsh.exe", "powershell", "pwsh")))
-                self.assertIn("setup_winget_git.ps1", cmd_args[1][-1])
-                self.assertIn("-git_only", cmd_args[1][-1])
+                self.assertEqual(cmd_args[1][-1], INSTALL_GIT)
                 self.assertIn("Installing Git...", kwargs.get("status_msg", ""))
                 self.assertIn("Git installation completed.", kwargs.get("on_success_msg", ""))
 

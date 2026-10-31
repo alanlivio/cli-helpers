@@ -290,6 +290,10 @@ from .workers import (
     StatusCheckWorker,
     build_helper_command,
 )
+from .install_software import (
+    INSTALL_GIT,
+    INSTALL_WINGET,
+)
 
 
 class MainWindow(fluentqt.Window):
@@ -856,61 +860,19 @@ class MainWindow(fluentqt.Window):
         self._active_worker.finished.connect(on_finished)
         self._active_worker.start()
 
-    def _get_setup_winget_git_path(self):
-        candidates = []
-        meipass = getattr(sys, "_MEIPASS", None)
-        if meipass:
-            candidates.append(os.path.join(meipass, "setup_winget_git.ps1"))
-            candidates.append(
-                os.path.join(
-                    meipass, "cli_helpers", "resources", "setup_winget_git.ps1"
-                )
-            )
-        candidates.extend(
-            [
-                os.path.abspath(
-                    os.path.join(
-                        os.path.dirname(__file__), "..", "setup_winget_git.ps1"
-                    )
-                ),
-                os.path.abspath(
-                    os.path.join(os.path.dirname(__file__), "setup_winget_git.ps1")
-                ),
-                os.path.abspath(
-                    os.path.join(
-                        os.path.dirname(__file__), "resources", "setup_winget_git.ps1"
-                    )
-                ),
-            ]
-        )
-        helpers_path = self.get_cli_helpers_path()
-        if helpers_path:
-            candidates.append(os.path.join(helpers_path, "setup_winget_git.ps1"))
-        for c in candidates:
-            if c and os.path.isfile(c):
-                return c
-        return None
-
     def install_winget(self):
         if sys.platform != "win32":
             self.add_output("WinGet installation is only supported on Windows.")
             return
 
-        setup_path = self._get_setup_winget_git_path()
-        if not setup_path:
-            self.add_output("setup_winget_git.ps1 script not found.")
-            return
-
         self.add_output("Starting WinGet installation...")
         ps_exe = self.get_powershell_executable()
-        escaped_path = setup_path.replace("'", "''")
-        script = f"& '{escaped_path}' -winget_only"
         args = [
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
             "-Command",
-            script,
+            INSTALL_WINGET,
         ]
         self.run_worker_command(
             ps_exe,
@@ -924,21 +886,14 @@ class MainWindow(fluentqt.Window):
             self.add_output("Git installation is only supported on Windows.")
             return
 
-        setup_path = self._get_setup_winget_git_path()
-        if not setup_path:
-            self.add_output("setup_winget_git.ps1 script not found.")
-            return
-
         self.add_output("Starting Git installation...")
         ps_exe = self.get_powershell_executable()
-        escaped_path = setup_path.replace("'", "''")
-        script = f"& '{escaped_path}' -git_only"
         args = [
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
             "-Command",
-            script,
+            INSTALL_GIT,
         ]
         self.run_worker_command(
             ps_exe,
