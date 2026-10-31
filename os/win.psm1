@@ -366,32 +366,6 @@ function win_install_docker() {
     }
 }
 
-function win_install_vlc() {
-    $vlc_latest_win64_url = "https://get.videolan.org/vlc/last/win64/"
-    $web_request = Invoke-WebRequest -Uri $vlc_latest_win64_url -Method Get -UseBasicParsing -ErrorAction Stop
-    $vlc_zip_link = $web_request.Links | Where-Object { $_.href -like "*win64.zip" } | Select-Object -First 1
-    if (-not ($vlc_zip_link)) { log_error "Download failed"; return }
-    $vlc_zip = $vlc_zip_link.href
-    $pkg_name = $vlc_zip -replace '-win64\.zip$'
-    if ($pkg_name -match "vlc-(\d+\.\d+\.\d+)") {
-        $latest_version = $Matches[1]
-        $installed_versions = Get-ChildItem -Path "$env:LOCALAPPDATA\Programs" -Directory -Filter "vlc-*" |
-        ForEach-Object { if ($_.Name -match "^vlc-(\d+\.\d+\.\d+)$") { [version]$Matches[1] } } |
-        Sort-Object -Descending
-        if ($installed_versions) {
-            $current_version = $installed_versions[0]
-            try {
-                if ($current_version -ge [version]$latest_version) {
-                    return
-                }
-            } catch {}
-        }
-    }
-    $url = "https://get.videolan.org/vlc/last/win64/$vlc_zip"
-    zip_download_extract $url "$env:LOCALAPPDATA\Programs"
-    win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\$pkg_name\vlc.exe"
-}
-
 function win_install_flutter() {
     $flutter_path = "C:\flutter"
     $flutter_bat = "$flutter_path\bin\flutter.bat"

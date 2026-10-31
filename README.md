@@ -21,7 +21,7 @@ git clone https://github.com/alanlivio/cli-helpers ~/src/cli-helpers
 
 ## Windows Setup
 
-If WinGet or Git is not installed, run [`setup_winget_git.ps1`](setup_winget_git.ps1) or download the [`cli-helpers` GUI](https://github.com/alanlivio/cli-helpers/releases/latest/download/cli-helpers.exe).
+If WinGet or Git is not installed, you may use  [`install-winget.ps1`](install-winget.ps1) and  [`install-git.ps1`](install-git.ps1), or download the [`cli-helpers` GUI](https://github.com/alanlivio/cli-helpers/releases/latest/download/cli-helpers.exe).
 
 To set up `cli-helpers` to be loaded in your `profile.ps1` by calling [`setup_profile.ps1`](setup_profile.ps1):
 
