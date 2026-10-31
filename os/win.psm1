@@ -36,7 +36,7 @@ function winget_upgrade() {
 function winget_install() {
     winget list --accept-source-agreements -q $args[0] | Out-Null # first arg is the id
     if (-not($?)) {
-        winget install @args --accept-package-agreements --accept-source-agreements --scope user
+        winget install @args --accept-package-agreements --accept-source-agreements
     }
 }
 
@@ -389,7 +389,7 @@ function win_install_flutter() {
     $url = $response.base_url + '/' + $stable_release.archive
     zip_download_extract $url (Split-Path -Path $flutter_path -Parent)
     win_path_add "$flutter_path\bin"
-    winget install --id Microsoft.VisualStudio.2022.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+    win_assert_vcvars
 }
 
 function win_install_obs() {
@@ -787,6 +787,21 @@ function win_startmenu_add_lnk_to_allapps {
     }
 }
 
+function win_assert_vcvars() {
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    $vcvars = $null
+    if (Test-Path $vswhere) {
+        $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if ($vsPath) {
+            $vcvars = Join-Path $vsPath "VC\Auxiliary\Build\vcvars64.bat"
+        }
+    }
+    if (-not $vcvars -or -not (Test-Path $vcvars)) {
+        throw "MSVC compiler not found. Install with: winget install Microsoft.VisualStudio.2022.BuildTools --override `"--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended`""
+    }
+    return $vcvars
+}
+
 function win_modern_context_menu_add {
     param(
         [Parameter(Mandatory = $true)][string]$name,
@@ -886,18 +901,7 @@ function win_modern_context_menu_add {
         Copy-Item (Join-Path $shellExtDir "launcher.exe") (Join-Path $pkgDir "launcher.exe") -Force
     }
 
-    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-    $vcvars = $null
-    if (Test-Path $vswhere) {
-        $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-        if ($vsPath) {
-            $vcvars = Join-Path $vsPath "VC\Auxiliary\Build\vcvars64.bat"
-        }
-    }
-    if (-not $vcvars -or -not (Test-Path $vcvars)) {
-        log_error "MSVC compiler not found. Install with: winget install Microsoft.VisualStudio.2022.BuildTools --override `"--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended`""
-        return
-    }
+    $vcvars = win_assert_vcvars
     $cppPath = Join-Path $pkgDir "ShellExt.cpp"
     $dllPath = Join-Path $pkgDir "ShellExt.dll"
     $defPath = Join-Path $pkgDir "ShellExt.def"
