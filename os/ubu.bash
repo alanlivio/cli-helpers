@@ -1,21 +1,19 @@
 # -- my_ helpers --
 
 function my_declutter() {
-    log_msg "# os declutter"
     user_as_sudoer_no_password
     ubu_snap_disable_dir_at_home
     ubu_pro_disable
-    sudo apt -y autoremove
 }
 
 function my_software() {
-    log_msg "# install packages"
     sudo apt update
     sudo apt install -y git curl wget build-essential python3 python3-venv jq net-tools
+    apt_upgrade
+    sudo apt -y autoremove
 }
 
-function my_dotfiles_and_update() {
-    log_msg "# dotfiles"
+function my_dotfiles() {
     local dotfiles_dir="${DOTFILES:-$HOME/src/dotfiles}"
     if [[ -d "$dotfiles_dir/.git" ]]; then
         if declare -F git_pull_recursive >/dev/null; then
@@ -24,9 +22,6 @@ function my_dotfiles_and_update() {
             git -C "$dotfiles_dir" pull
         fi
     fi
-    log_msg "# update pkgs"
-    apt_upgrade
-    sudo apt -y autoremove
 }
 
 # -- du --

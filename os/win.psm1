@@ -1,18 +1,16 @@
 # -- my_ helpers --
 
 function my_declutter() {
-    log_msg "# os declutter"
     win_declutter_all
     explorer_hide_home_dotfiles
 }
 
 function my_software() {
-    log_msg "# install packages"
     win_install_python
+    winget_upgrade
 }
 
-function my_dotfiles_and_update() {
-    log_msg "# dotfiles"
+function my_dotfiles() {
     $dotfiles_dir = if (Test-Path variable:global:DOTFILES) { $global:DOTFILES } elseif (Test-Path "$env:USERPROFILE\src\dotfiles") { "$env:USERPROFILE\src\dotfiles" } else { $null }
     if ($dotfiles_dir -and (Test-Path "$dotfiles_dir\.git")) {
         if (Get-Command git_pull_recursive -ErrorAction SilentlyContinue) {
@@ -22,8 +20,6 @@ function my_dotfiles_and_update() {
         }
     }
     explorer_hide_home_dotfiles
-    log_msg "# update"
-    winget_upgrade
 }
 
 # -- winget/update --

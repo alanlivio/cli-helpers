@@ -41,8 +41,8 @@ git clone https://github.com/alanlivio/cli-helpers ~\src\cli-helpers
 `cli-helpers` provides baseline implementations for common lifecycle helpers in [`os/ubu.bash`](os/ubu.bash) and [`os/win.psm1`](os/win.psm1):
 
 - `my_declutter`: Removes unused packages/shortcuts and hides dotfiles in the user home directory.
-- `my_software`: Installs baseline dependencies such as Git and Python.
-- `my_dotfiles_and_update`: Pulls git updates for the dotfiles repository and upgrades system packages (`winget upgrade` on Windows, `apt update && apt upgrade` on Ubuntu).
+- `my_software`: Installs software Python, and upgrades system packages (`winget upgrade` on Windows, `apt update && apt upgrade` on Ubuntu).
+- `my_dotfiles`: Pulls git updates for the dotfiles repository.
 
 ## References
 
