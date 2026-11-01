@@ -304,6 +304,10 @@ class MainWindow(fluentqt.Window):
         super().__init__()
         self.resize(720, 800)
 
+        app = QApplication.instance()
+        if app:
+            app.aboutToQuit.connect(self.kill_workers)
+
         self._active_worker = None
         self._status_worker = None
         self._helper_worker = None
@@ -1133,7 +1137,7 @@ class MainWindow(fluentqt.Window):
         self._active_worker.finished.connect(on_task_finished)
         self._active_worker.start()
 
-    def closeEvent(self, a0):
+    def kill_workers(self):
         for worker in [
             self._active_worker,
             self._status_worker,
@@ -1141,7 +1145,14 @@ class MainWindow(fluentqt.Window):
             self._task_worker,
         ]:
             if worker and worker.isRunning():
-                worker.wait(100)
+                if hasattr(worker, "kill"):
+                    worker.kill()
+                else:
+                    worker.terminate()
+                    worker.wait(200)
+
+    def closeEvent(self, a0):
+        self.kill_workers()
         super().closeEvent(a0)
 
     def resizeEvent(self, e):

@@ -361,6 +361,26 @@ class TestGui(unittest.TestCase):
                 self.assertFalse(installed)
                 self.assertEqual(version, "")
 
+    def test_kill_workers_and_close_event(self):
+        worker = HelperWorker(sys.executable, ["-c", "import time; time.sleep(10)"])
+        worker.start()
+        self.window._active_worker = worker
+        self.assertTrue(worker.isRunning())
+        self.window.close()
+        self.assertFalse(worker.isRunning())
+
+    def test_helper_worker_kill(self):
+        worker = HelperWorker(sys.executable, ["-c", "import time; time.sleep(10)"])
+        worker.start()
+        for _ in range(50):
+            if worker.process is not None:
+                break
+            self.app.processEvents()
+            worker.wait(20)
+        self.assertTrue(worker.isRunning())
+        worker.kill()
+        self.assertFalse(worker.isRunning())
+
 
 if __name__ == "__main__":
     unittest.main()

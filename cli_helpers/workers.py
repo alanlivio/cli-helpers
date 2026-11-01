@@ -24,6 +24,30 @@ class HelperWorker(QThread):
         self.cwd = cwd
         self.parse_helpers = parse_helpers or parse_tasks
         self.parse_tasks = self.parse_helpers
+        self.process = None
+        self._killed = False
+
+    def kill(self):
+        self._killed = True
+        proc = self.process
+        if proc and proc.poll() is None:
+            if sys.platform == "win32":
+                try:
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                        capture_output=True,
+                        creationflags=subprocess.CREATE_NO_WINDOW,
+                        timeout=5,
+                    )
+                except Exception:
+                    pass
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        if self.isRunning():
+            self.terminate()
+            self.wait(500)
 
     def run(self):
         try:
@@ -31,7 +55,7 @@ class HelperWorker(QThread):
             creation_flags = (
                 subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
             )
-            process = subprocess.Popen(
+            self.process = subprocess.Popen(
                 cmd,
                 cwd=self.cwd,
                 stdout=subprocess.PIPE,
@@ -43,22 +67,38 @@ class HelperWorker(QThread):
                 creationflags=creation_flags,
             )
             collected_helpers = []
-            if process.stdout:
-                for line in iter(process.stdout.readline, ""):
-                    if line:
-                        trimmed = line.rstrip("\r\n")
-                        if self.parse_helpers:
-                            stripped = trimmed.strip()
-                            if stripped:
-                                collected_helpers.append(stripped)
-                        else:
-                            self.output_line.emit(trimmed)
-                process.stdout.close()
-            ret = process.wait()
+            if self.process.stdout:
+                try:
+                    for line in iter(self.process.stdout.readline, ""):
+                        if self._killed:
+                            break
+                        if line:
+                            trimmed = line.rstrip("\r\n")
+                            if self.parse_helpers:
+                                stripped = trimmed.strip()
+                                if stripped:
+                                    collected_helpers.append(stripped)
+                            else:
+                                self.output_line.emit(trimmed)
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        self.process.stdout.close()
+                    except Exception:
+                        pass
+            try:
+                ret = self.process.wait()
+            except Exception:
+                ret = -1
+            if self._killed:
+                return
             if self.parse_helpers:
                 self.helpers_loaded.emit(collected_helpers)
             self.finished.emit(ret)
         except Exception as e:
+            if self._killed:
+                return
             if self.parse_helpers:
                 self.output_message.emit(f"Helper discovery error: {e}")
                 self.helpers_loaded.emit([])
@@ -327,6 +367,13 @@ class StatusCheckWorker(QThread):
         super().__init__()
         self.helpers_path = helpers_path
         self.dotfiles_path = dotfiles_path
+        self._killed = False
+
+    def kill(self):
+        self._killed = True
+        if self.isRunning():
+            self.terminate()
+            self.wait(500)
 
     def _is_repo_updated(self, repo_path, creation_flags, git_cmd=None):
         if not repo_path or not os.path.isdir(repo_path):
@@ -531,7 +578,8 @@ class StatusCheckWorker(QThread):
                 self.dotfiles_path, creation_flags, git_cmd=git_cmd
             )
 
-        self.status_ready.emit(result)
+        if not self._killed:
+            self.status_ready.emit(result)
 
 
 __all__ = [
