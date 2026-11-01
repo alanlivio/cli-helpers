@@ -125,6 +125,8 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.btn_clone_dotfiles.text(), "Update dotfiles")
         self.assertEqual(self.window.tb_helpers_user.text(), "helperuser")
         self.assertEqual(self.window.tb_username.text(), "testuser")
+        self.assertTrue(self.window.btn_install_helpers.isEnabled())
+        self.assertTrue(self.window.btn_clone_dotfiles.isEnabled())
 
     def test_status_not_updated(self):
         mock_info = {
@@ -160,6 +162,8 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.dotfiles_badge.text(), "Not installed")
         self.assertEqual(self.window.dotfiles_badge.level, InfoLevel.ERROR)
         self.assertEqual(self.window.btn_clone_dotfiles.text(), "Clone dotfiles")
+        self.assertFalse(self.window.btn_install_helpers.isEnabled())
+        self.assertFalse(self.window.btn_clone_dotfiles.isEnabled())
 
     def test_tasks_loaded_callback(self):
         tasks = ["win_task_a", "ubu_task_b", "my_task_c"]
@@ -313,6 +317,15 @@ class TestGui(unittest.TestCase):
                 self.assertEqual(cmd_args[1][-1], INSTALL_GIT)
                 self.assertIn("Installing Git...", kwargs.get("status_msg", ""))
                 self.assertIn("Git installation completed.", kwargs.get("on_success_msg", ""))
+                cb = kwargs.get("on_finished_callback")
+                self.assertIsNotNone(cb)
+                with patch.object(self.window, "check_git_installed", return_value=(True, "v2.55.0")):
+                    cb(0)
+                    self.assertEqual(self.window.git_badge.text(), "Installed")
+                    self.assertEqual(self.window.git_badge.level, InfoLevel.SUCCESS)
+                    self.assertFalse(self.window.btn_install_git.isEnabled())
+                    self.assertTrue(self.window.btn_install_helpers.isEnabled())
+                    self.assertTrue(self.window.btn_clone_dotfiles.isEnabled())
 
     def test_status_check_worker_winget_field(self):
         worker = StatusCheckWorker(None, None)
@@ -324,6 +337,29 @@ class TestGui(unittest.TestCase):
         self.assertEqual(len(status_results), 1)
         self.assertIn("winget_installed", status_results[0])
         self.assertIn("winget_version", status_results[0])
+
+    def test_clone_buttons_disabled_initially(self):
+        new_win = MainWindow(refresh=False)
+        try:
+            self.assertFalse(new_win.btn_install_helpers.isEnabled())
+            self.assertFalse(new_win.btn_clone_dotfiles.isEnabled())
+        finally:
+            new_win.close()
+
+    def test_check_git_installed(self):
+        with patch.object(self.window, "get_git_executable", return_value="git"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value.returncode = 0
+                mock_run.return_value.stdout = "git version 2.50.0.windows.1"
+                installed, version = self.window.check_git_installed()
+                self.assertTrue(installed)
+                self.assertEqual(version, "v2.50.0.windows.1")
+
+                mock_run.return_value.returncode = 1
+                mock_run.return_value.stdout = ""
+                installed, version = self.window.check_git_installed()
+                self.assertFalse(installed)
+                self.assertEqual(version, "")
 
 
 if __name__ == "__main__":

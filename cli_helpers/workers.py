@@ -268,6 +268,58 @@ def build_helper_command(
         ]
 
 
+def get_git_executable():
+    cmd = shutil.which("git")
+    if cmd:
+        return cmd
+    if sys.platform == "win32":
+        candidates = [
+            os.path.join(
+                os.environ.get("LOCALAPPDATA", ""),
+                "Programs",
+                "Git",
+                "cmd",
+                "git.exe",
+            ),
+            os.path.join(
+                os.environ.get("ProgramFiles", r"C:\Program Files"),
+                "Git",
+                "cmd",
+                "git.exe",
+            ),
+            os.path.join(
+                os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+                "Git",
+                "cmd",
+                "git.exe",
+            ),
+            os.path.join(
+                os.environ.get("LOCALAPPDATA", ""),
+                "Programs",
+                "Git",
+                "bin",
+                "git.exe",
+            ),
+            os.path.join(
+                os.environ.get("ProgramFiles", r"C:\Program Files"),
+                "Git",
+                "bin",
+                "git.exe",
+            ),
+        ]
+        for c in candidates:
+            if c and os.path.isfile(c):
+                cmd_dir = os.path.dirname(c)
+                current_paths = os.environ.get("PATH", "").split(os.pathsep)
+                if cmd_dir not in current_paths:
+                    os.environ["PATH"] = (
+                        cmd_dir + os.pathsep + os.environ.get("PATH", "")
+                    )
+                return c
+
+    return "git"
+
+
 class StatusCheckWorker(QThread):
     status_ready = Signal(dict)
 
@@ -276,12 +328,13 @@ class StatusCheckWorker(QThread):
         self.helpers_path = helpers_path
         self.dotfiles_path = dotfiles_path
 
-    def _is_repo_updated(self, repo_path, creation_flags):
+    def _is_repo_updated(self, repo_path, creation_flags, git_cmd=None):
         if not repo_path or not os.path.isdir(repo_path):
             return True
+        cmd_exe = git_cmd or get_git_executable()
         try:
             subprocess.run(
-                ["git", "-C", repo_path, "fetch", "origin", "main"],
+                [cmd_exe, "-C", repo_path, "fetch", "origin", "main"],
                 capture_output=True,
                 timeout=4,
                 creationflags=creation_flags,
@@ -292,7 +345,7 @@ class StatusCheckWorker(QThread):
         for ref in ["HEAD..@{u}", "HEAD..origin/main"]:
             try:
                 res = subprocess.run(
-                    ["git", "-C", repo_path, "rev-list", "--count", ref],
+                    [cmd_exe, "-C", repo_path, "rev-list", "--count", ref],
                     capture_output=True,
                     text=True,
                     timeout=2,
@@ -366,9 +419,10 @@ class StatusCheckWorker(QThread):
         except Exception:
             pass
 
+        git_cmd = get_git_executable()
         try:
             res = subprocess.run(
-                ["git", "--version"],
+                [git_cmd, "--version"],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -388,7 +442,7 @@ class StatusCheckWorker(QThread):
             try:
                 res = subprocess.run(
                     [
-                        "git",
+                        git_cmd,
                         "-C",
                         self.helpers_path,
                         "config",
@@ -417,7 +471,7 @@ class StatusCheckWorker(QThread):
             try:
                 res = subprocess.run(
                     [
-                        "git",
+                        git_cmd,
                         "-C",
                         self.dotfiles_path,
                         "config",
@@ -445,7 +499,7 @@ class StatusCheckWorker(QThread):
                     try:
                         res = subprocess.run(
                             [
-                                "git",
+                                git_cmd,
                                 "config",
                                 "--file",
                                 gitconfig_path,
@@ -469,12 +523,12 @@ class StatusCheckWorker(QThread):
 
         if result["helpers_installed"]:
             result["helpers_updated"] = self._is_repo_updated(
-                self.helpers_path, creation_flags
+                self.helpers_path, creation_flags, git_cmd=git_cmd
             )
 
         if result["dotfiles_installed"]:
             result["dotfiles_updated"] = self._is_repo_updated(
-                self.dotfiles_path, creation_flags
+                self.dotfiles_path, creation_flags, git_cmd=git_cmd
             )
 
         self.status_ready.emit(result)
@@ -485,4 +539,5 @@ __all__ = [
     "HelperDiscoveryWorker",
     "StatusCheckWorker",
     "build_helper_command",
+    "get_git_executable",
 ]

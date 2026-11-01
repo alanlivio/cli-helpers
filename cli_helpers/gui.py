@@ -289,6 +289,7 @@ from .workers import (
     HelperDiscoveryWorker,
     StatusCheckWorker,
     build_helper_command,
+    get_git_executable,
 )
 from .install_software import (
     INSTALL_GIT,
@@ -443,6 +444,7 @@ class MainWindow(fluentqt.Window):
         self.helpers_repo_suffix = CaptionLabel("/cli-helpers")
         self.btn_install_helpers = PushButton("Clone helpers")
         self.btn_install_helpers.setFixedWidth(125)
+        self.btn_install_helpers.setEnabled(False)
         self.btn_install_helpers.clicked.connect(self.install_or_update_helpers)
         helpers_row.addWidget(self.helpers_label)
         helpers_row.addWidget(self.helpers_badge)
@@ -468,6 +470,7 @@ class MainWindow(fluentqt.Window):
         self.dotfiles_repo_suffix = CaptionLabel("/dotfiles")
         self.btn_clone_dotfiles = PushButton("Clone dotfiles")
         self.btn_clone_dotfiles.setFixedWidth(125)
+        self.btn_clone_dotfiles.setEnabled(False)
         self.btn_clone_dotfiles.clicked.connect(self.clone_or_update_dotfiles)
         dotfiles_row.addWidget(self.dotfiles_label)
         dotfiles_row.addWidget(self.dotfiles_badge)
@@ -626,8 +629,9 @@ class MainWindow(fluentqt.Window):
         self.btn_install_git.setEnabled(
             not busy and self.git_badge.text() == "Not installed"
         )
-        self.btn_install_helpers.setEnabled(not busy)
-        self.btn_clone_dotfiles.setEnabled(not busy)
+        is_git_installed = self.git_badge.text() == "Installed"
+        self.btn_install_helpers.setEnabled(not busy and is_git_installed)
+        self.btn_clone_dotfiles.setEnabled(not busy and is_git_installed)
         self.btn_run_task.setEnabled(not busy and self.task_selector.count() > 0)
         self.btn_run_my_task.setEnabled(not busy and self.my_task_selector.count() > 0)
         self.btn_run_recent_task.setEnabled(
@@ -650,6 +654,32 @@ class MainWindow(fluentqt.Window):
 
     def clear_output(self):
         self.output_box.clear()
+
+    def get_git_executable(self):
+        return get_git_executable()
+
+    def check_git_installed(self):
+        git_exe = self.get_git_executable()
+        try:
+            creation_flags = (
+                subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            )
+            res = subprocess.run(
+                [git_exe, "--version"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=creation_flags,
+            )
+            if res.returncode == 0 and res.stdout:
+                version = re.sub(
+                    r"^git version\s*", "v", res.stdout.strip(), flags=re.IGNORECASE
+                )
+                return True, version
+        except Exception:
+            pass
+        return False, ""
 
     def get_winget_executable(self):
         cmd = shutil.which("winget")
@@ -790,6 +820,10 @@ class MainWindow(fluentqt.Window):
             self.dotfiles_badge.setLevel(InfoLevel.ERROR)
             self.btn_clone_dotfiles.setText("Clone dotfiles")
 
+        is_git_installed = bool(info.get("git_installed", False))
+        self.btn_install_helpers.setEnabled(is_git_installed)
+        self.btn_clone_dotfiles.setEnabled(is_git_installed)
+
         if info.get("helpers_path"):
             self.helpers_label.setToolTip(f"Local path: {info['helpers_path']}")
             self.helpers_badge.setToolTip(f"Local path: {info['helpers_path']}")
@@ -842,7 +876,13 @@ class MainWindow(fluentqt.Window):
         self.initialize_tasks()
 
     def run_worker_command(
-        self, cmd, args, cwd=None, status_msg=None, on_success_msg=None
+        self,
+        cmd,
+        args,
+        cwd=None,
+        status_msg=None,
+        on_success_msg=None,
+        on_finished_callback=None,
     ):
         self.set_busy(True, status_msg or "Executing command...")
         self._active_worker = HelperWorker(cmd, args, cwd)
@@ -855,6 +895,8 @@ class MainWindow(fluentqt.Window):
             else:
                 self.add_output(f"Command failed with exit code {exit_code}")
                 self.set_busy(False, "Command failed.")
+            if on_finished_callback:
+                on_finished_callback(exit_code)
             self.refresh_all()
 
         self._active_worker.finished.connect(on_finished)
@@ -895,11 +937,25 @@ class MainWindow(fluentqt.Window):
             "-Command",
             INSTALL_GIT,
         ]
+
+        def on_git_finished(exit_code):
+            if exit_code == 0:
+                installed, version = self.check_git_installed()
+                if installed:
+                    self.git_badge.setText("Installed")
+                    self.git_badge.setLevel(InfoLevel.SUCCESS)
+                    if version:
+                        self.git_badge.setToolTip(version)
+                    self.btn_install_git.setEnabled(False)
+                    self.btn_install_helpers.setEnabled(True)
+                    self.btn_clone_dotfiles.setEnabled(True)
+
         self.run_worker_command(
             ps_exe,
             args,
             status_msg="Installing Git...",
             on_success_msg="Git installation completed.",
+            on_finished_callback=on_git_finished,
         )
 
     def install_or_update_helpers(self):
@@ -913,11 +969,12 @@ class MainWindow(fluentqt.Window):
             username = "alanlivio"
         username = re.sub(r"^(https?://)?github\.com/", "", username).strip("/")
         username = re.sub(r"/cli-helpers(\.git)?$", "", username)
+        git_exe = self.get_git_executable()
 
         if helpers_path:
             self.add_output(f"Updating cli-helpers at {helpers_path}...")
             self.run_worker_command(
-                "git",
+                git_exe,
                 ["-C", helpers_path, "pull", "origin", "main"],
                 status_msg="Updating cli-helpers...",
                 on_success_msg="cli-helpers updated.",
@@ -929,7 +986,7 @@ class MainWindow(fluentqt.Window):
             os.makedirs(parent_dir, exist_ok=True)
             self.add_output(f"Cloning {username}/cli-helpers into {target_dir}...")
             self.run_worker_command(
-                "git",
+                git_exe,
                 [
                     "clone",
                     f"https://github.com/{username}/cli-helpers.git",
@@ -950,10 +1007,12 @@ class MainWindow(fluentqt.Window):
             self.status_label.setText("Username required.")
             return
 
+        git_exe = self.get_git_executable()
+
         if dotfiles_path:
             self.add_output(f"Updating dotfiles at {dotfiles_path}...")
             self.run_worker_command(
-                "git",
+                git_exe,
                 ["-C", dotfiles_path, "pull", "origin", "main"],
                 status_msg="Updating dotfiles...",
                 on_success_msg="dotfiles updated.",
@@ -967,7 +1026,7 @@ class MainWindow(fluentqt.Window):
             os.makedirs(parent_dir, exist_ok=True)
             self.add_output(f"Cloning {username}/dotfiles into {target_dir}...")
             self.run_worker_command(
-                "git",
+                git_exe,
                 [
                     "clone",
                     f"https://github.com/{username}/dotfiles.git",
