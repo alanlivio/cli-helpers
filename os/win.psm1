@@ -969,9 +969,6 @@ function win_modern_context_menu_remove {
     }
 }
 
-Set-Alias win_context_menu_add win_modern_context_menu_add
-Set-Alias win_context_menu_remove win_modern_context_menu_remove
-
 # -- win_clutter --
 
 function win_declutter_all() {
