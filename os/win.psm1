@@ -1177,6 +1177,7 @@ function win_declutter_taskbar_startmenu() {
     $search_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
     $pen_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\PenWorkspace"
     $touch_key = "HKCU:\Software\Microsoft\TabletTip\1.7"
+    $bluetooth_key = "HKCU:\Control Panel\Bluetooth"
     
     # taskbar
     Set-ItemProperty -Path $advanced_key -Name "ShowTaskViewButton" -Value 0 -Type Dword
@@ -1188,6 +1189,8 @@ function win_declutter_taskbar_startmenu() {
     Set-ItemProperty -Path $advanced_key -Name "TaskbarAnimations" -Value 0 -Type Dword
     Set-ItemProperty -Path $pen_key -Name "PenWorkspaceButtonDesiredVisibility" -Type DWord -Value 0 -Force | Out-Null
     Set-ItemProperty -Path $touch_key -Name "TipbandDesiredVisibility" -Type DWord -Value 0 -Force | Out-Null
+    New-Item -Path $bluetooth_key -Force | Out-Null
+    Set-ItemProperty -Path $bluetooth_key -Name "Notification Area Icon" -Value 0 -Type DWord | Out-Null
     
     # taskbar search
     $search_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
