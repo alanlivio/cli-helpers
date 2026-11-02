@@ -7,7 +7,7 @@ function my_declutter() {
 
 function my_software() {
     win_install_python
-    winget_upgrade
+    winget_upgrade_user
 }
 
 function my_dotfiles() {
@@ -24,9 +24,9 @@ function my_dotfiles() {
 
 # -- winget/update --
 
-function winget_upgrade() {
-    log_msg "winget upgrade"
-    winget upgrade --all --accept-package-agreements --accept-source-agreements
+function winget_upgrade_user() {
+    log_msg "winget upgrade scope user"
+    winget upgrade --all --accept-package-agreements --accept-source-agreements --scope user
 }
 
 function winget_install() {
@@ -45,23 +45,11 @@ function winget_uninstall() {
 }
 
 function winget_fix_cache() {
-    Remove-Item -Recurse "$env:LOCALAPPDATA\Temp\WinGet\" -Force -ErrorAction SilentlyContinue
-    Remove-Item -Recurse "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe" -Force -ErrorAction SilentlyContinue
-    winget source update
-}
-
-function winget_fix_source() {
     if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping winget_fix_source"; return }
-    Remove-Item -Path "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_*\LocalState\*" -Recurse -Force -ErrorAction SilentlyContinue
-    $cmd = @'
-winget source remove winget
-winget source remove msstore
-winget source add -n winget-rest https://api.winget.microsoft.com/v1 -t Microsoft.Rest
-winget source list
-Read-Host 'Press Enter to close'
-'@
-    $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cmd))
-    Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -EncodedCommand $b64"
+    Remove-Item -Path "$env:LOCALAPPDATA\Temp\WinGet\*" -Recurse -Force -ErrorAction SilentlyContinue
+    winget source reset --force
+    winget source update
+    winget source list
 }
 
 function win_os_upgrade() {
