@@ -28,6 +28,8 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QLabel,
     QPlainTextEdit,
+    QScrollArea,
+    QFrame,
 )
 from PySide6.QtGui import QFont, QPalette, QColor, QIcon
 
@@ -307,6 +309,7 @@ class MainWindow(fluentqt.Window):
         app = QApplication.instance()
         if app:
             app.aboutToQuit.connect(self.kill_workers)
+            app.focusChanged.connect(self._on_focus_changed)
 
         self._active_worker = None
         self._status_worker = None
@@ -382,18 +385,106 @@ class MainWindow(fluentqt.Window):
         screen = QApplication.primaryScreen()
         if screen:
             geo = screen.availableGeometry()
-            x = max(0, (geo.width() - self.width()) // 2)
-            y = max(0, (geo.height() - self.height()) // 2)
+            w = min(self.width(), geo.width())
+            h = min(self.height(), geo.height())
+            if w != self.width() or h != self.height():
+                self.resize(w, h)
+            x = geo.x() + max(0, (geo.width() - self.width()) // 2)
+            y = geo.y() + max(0, (geo.height() - self.height()) // 2)
             self.move(x, y)
+
+    def _on_focus_changed(self, _old, new):
+        if (
+            new is not None
+            and hasattr(self, "scroll_area")
+            and self.scroll_area
+            and self.scroll_area.widget()
+            and self.scroll_area.widget().isAncestorOf(new)
+        ):
+            QTimer.singleShot(
+                100, lambda w=new: self._ensure_focused_visible(w)
+            )
+
+    def _ensure_focused_visible(self, widget):
+        if (
+            widget is not None
+            and hasattr(self, "scroll_area")
+            and self.scroll_area
+        ):
+            try:
+                self.scroll_area.ensureWidgetVisible(widget, 16, 24)
+            except RuntimeError:
+                pass
 
     def _init_ui(self):
         root_widget = QWidget(self)
         root_widget.setObjectName("rootWidget")
         root_layout = QVBoxLayout(root_widget)
-        root_layout.setContentsMargins(24, 8, 24, 20)
-        root_layout.setSpacing(14)
+        root_layout.setContentsMargins(0, 8, 0, 16)
+        root_layout.setSpacing(8)
 
-        setup_card = CardWidget(self)
+        self.scroll_area = QScrollArea(root_widget)
+        self.scroll_area.setObjectName("contentScrollArea")
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.scroll_area.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                background: transparent;
+                border: none;
+            }
+            QScrollArea > QWidget > QWidget {
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                background: transparent;
+                width: 8px;
+                margin: 2px 2px 2px 0;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(255, 255, 255, 0.2);
+                min-height: 20px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: rgba(255, 255, 255, 0.35);
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar:horizontal {
+                background: transparent;
+                height: 8px;
+                margin: 0 2px 2px 2px;
+            }
+            QScrollBar::handle:horizontal {
+                background: rgba(255, 255, 255, 0.2);
+                min-width: 20px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background: rgba(255, 255, 255, 0.35);
+            }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+                width: 0px;
+            }
+        """)
+
+        scroll_content = QWidget(self.scroll_area)
+        scroll_content.setObjectName("scrollContent")
+        content_layout = QVBoxLayout(scroll_content)
+        content_layout.setContentsMargins(24, 0, 24, 6)
+        content_layout.setSpacing(14)
+
+        setup_card = CardWidget(scroll_content)
+        setup_card.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         setup_layout = QVBoxLayout(setup_card)
         setup_layout.setContentsMargins(16, 14, 16, 14)
         setup_layout.setSpacing(10)
@@ -485,9 +576,12 @@ class MainWindow(fluentqt.Window):
         dotfiles_row.addWidget(self.btn_clone_dotfiles)
         setup_layout.addLayout(dotfiles_row)
 
-        root_layout.addWidget(setup_card)
+        content_layout.addWidget(setup_card)
 
-        tasks_card = CardWidget(self)
+        tasks_card = CardWidget(scroll_content)
+        tasks_card.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         tasks_layout = QVBoxLayout(tasks_card)
         tasks_layout.setContentsMargins(16, 14, 16, 14)
         tasks_layout.setSpacing(10)
@@ -551,9 +645,10 @@ class MainWindow(fluentqt.Window):
         task_selector_row.addWidget(self.btn_run_task)
         tasks_layout.addLayout(task_selector_row)
 
-        root_layout.addWidget(tasks_card)
+        content_layout.addWidget(tasks_card)
 
-        output_card = CardWidget(self)
+        output_card = CardWidget(scroll_content)
+        output_card.setMinimumHeight(180)
         output_layout = QVBoxLayout(output_card)
         output_layout.setContentsMargins(16, 14, 16, 14)
         output_layout.setSpacing(10)
@@ -569,6 +664,7 @@ class MainWindow(fluentqt.Window):
 
         self.output_box = TextEdit()
         self.output_box.setReadOnly(True)
+        self.output_box.setMinimumHeight(110)
         mono_font = QFont("Consolas")
         mono_font.setStyleHint(QFont.StyleHint.Monospace)
         mono_font.setPointSize(9)
@@ -603,9 +699,13 @@ class MainWindow(fluentqt.Window):
         """)
         output_layout.addWidget(self.output_box, 1)
 
-        root_layout.addWidget(output_card, 1)
+        content_layout.addWidget(output_card, 1)
+
+        self.scroll_area.setWidget(scroll_content)
+        root_layout.addWidget(self.scroll_area, 1)
 
         footer_layout = QVBoxLayout()
+        footer_layout.setContentsMargins(24, 0, 24, 0)
         footer_layout.setSpacing(4)
         self.progress_bar = IndeterminateProgressBar(self)
         self.progress_bar.setVisible(False)
@@ -1152,6 +1252,12 @@ class MainWindow(fluentqt.Window):
                     worker.wait(200)
 
     def closeEvent(self, a0):
+        app = QApplication.instance()
+        if app:
+            try:
+                app.focusChanged.disconnect(self._on_focus_changed)
+            except Exception:
+                pass
         self.kill_workers()
         super().closeEvent(a0)
 
@@ -1159,6 +1265,10 @@ class MainWindow(fluentqt.Window):
         super().resizeEvent(e)
         if hasattr(self, "title_bar") and hasattr(self.title_bar, "raise_"):
             self.title_bar.raise_()
+        app = QApplication.instance()
+        focused = app.focusWidget() if app else None
+        if focused:
+            self._on_focus_changed(None, focused)
 
 
 def main():

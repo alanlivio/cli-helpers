@@ -381,6 +381,16 @@ class TestGui(unittest.TestCase):
         worker.kill()
         self.assertFalse(worker.isRunning())
 
+    def test_scroll_area_prevents_squashing_on_small_height(self):
+        self.assertTrue(hasattr(self.window, "scroll_area"))
+        self.assertTrue(self.window.scroll_area.widgetResizable())
+        self.window.show()
+        self.window.resize(720, 280)
+        self.app.processEvents()
+        scroll_content = self.window.scroll_area.widget()
+        self.assertIsNotNone(scroll_content)
+        self.assertGreaterEqual(scroll_content.height(), 450)
+
 
 if __name__ == "__main__":
     unittest.main()
