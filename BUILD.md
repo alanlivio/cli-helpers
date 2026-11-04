@@ -15,20 +15,10 @@ Run tests:
 make test
 ```
 
-## Packaging
-
-Build the standalone executable and WinGet package:
-
-```powershell
-make gui
-make winget-pkg
-```
-
 ## Release
 
-Publish the GUI executable to GitHub and submit the WinGet package:
+Build and publish the GUI executable to GitHub:
 
 ```powershell
 make publish-gui
-make winget-pkg-submit
 ```

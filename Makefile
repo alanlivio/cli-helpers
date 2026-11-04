@@ -2,7 +2,7 @@ MAKEFLAGS += -s --no-print-directory
 .DEFAULT_GOAL := help
 $(if $(filter Windows_NT,$(OS)),$(if $(shell where printf 2>nul),,$(error coreutils is not installed. Please run: winget install coreutils)))
 
-.PHONY: help deps run-gui gui winget-pkg winget-pkg-submit publish-gui clean test icons docs
+.PHONY: help deps run-gui gui publish-gui clean test icons docs
 
 help:
 	@printf "%s\n" \
@@ -12,8 +12,6 @@ help:
 		"  deps               Install dependencies" \
 		"  run-gui            Run GUI application" \
 		"  gui                Build standalone executable with PyInstaller" \
-		"  winget-pkg         Generate and validate Winget manifest" \
-		"  winget-pkg-submit  Submit package manifest to winget-pkgs via wingetcreate" \
 		"  publish-gui        Publish release to GitHub via gh" \
 		"  clean              Clean build artifacts" \
 		"  test               Run unit tests" \
@@ -45,13 +43,6 @@ gui: icons
 	python -m PyInstaller --noconfirm --clean --onefile --windowed --paths . --collect-all fluentqt --collect-all cli_helpers --add-data "cli_helpers/resources:cli_helpers/resources" --icon "cli_helpers/resources/icon.ico" $(if $(wildcard version_info.txt),--version-file version_info.txt) --name cli-helpers cli_helpers/__main__.py
 
 VERSION ?= $(shell python -c "from cli_helpers.version import __version__; print(__version__)")
-
-winget-pkg: gui
-	python packaging/winget_pkg.py $(VERSION)
-	winget validate --manifest dist/winget
-
-winget-pkg-submit: winget-pkg
-	python -c "import subprocess; t = subprocess.run(['gh', 'auth', 'token'], capture_output=True, text=True).stdout.strip(); cmd = ['wingetcreate', 'submit', 'dist/winget', '--prtitle', 'New package: alanlivio.clihelpers version $(VERSION)']; cmd += ['--token', t] if t else []; subprocess.run(cmd, check=True)"
 
 publish-gui: gui
 	@printf "SHA256 (exe): "
