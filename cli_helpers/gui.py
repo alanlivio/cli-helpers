@@ -1,5 +1,4 @@
 import io
-import json
 import os
 import sys
 import re
@@ -18,7 +17,6 @@ from PySide6.QtCore import (
     Qt,
     QTimer,
     qInstallMessageHandler,
-    QSettings,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -590,13 +588,10 @@ class MainWindow(fluentqt.Window):
 
         tasks_header = QHBoxLayout()
         self.tasks_title = SubtitleLabel("Run")
-        self.btn_clear_recent = PushButton("Clear Recent", self, FluentIcon.DELETE)
-        self.btn_clear_recent.clicked.connect(self.clear_recent_tasks)
         self.btn_reload_tasks = PushButton("Reload Tasks", self, FluentIcon.SYNC)
         self.btn_reload_tasks.clicked.connect(self.initialize_tasks)
         tasks_header.addWidget(self.tasks_title)
         tasks_header.addStretch()
-        tasks_header.addWidget(self.btn_clear_recent)
         tasks_header.addWidget(self.btn_reload_tasks)
         tasks_layout.addLayout(tasks_header)
 
@@ -615,22 +610,6 @@ class MainWindow(fluentqt.Window):
         my_row.addWidget(self.my_task_selector)
         my_row.addWidget(self.btn_run_my_task)
         tasks_layout.addLayout(my_row)
-
-        recent_row = QHBoxLayout()
-        recent_label = BodyLabel("Recent:")
-        recent_label.setFixedWidth(100)
-        self.recent_task_selector = ComboBox()
-        self.recent_task_selector.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-        self.recent_task_selector.setPlaceholderText("No recent tasks")
-        self.btn_run_recent_task = PushButton("Run", self, FluentIcon.PLAY)
-        self.btn_run_recent_task.setFixedWidth(135)
-        self.btn_run_recent_task.clicked.connect(self.run_recent_task)
-        recent_row.addWidget(recent_label)
-        recent_row.addWidget(self.recent_task_selector)
-        recent_row.addWidget(self.btn_run_recent_task)
-        tasks_layout.addLayout(recent_row)
 
         task_selector_row = QHBoxLayout()
         task_label = BodyLabel("All tasks:")
@@ -718,7 +697,6 @@ class MainWindow(fluentqt.Window):
         root_layout.addLayout(footer_layout)
 
         self.setContentWidget(root_widget)
-        self._update_recent_selector()
 
     def set_busy(self, busy, status=None):
         self.progress_bar.setVisible(busy)
@@ -736,16 +714,18 @@ class MainWindow(fluentqt.Window):
             not busy and self.git_badge.text() == "Not installed"
         )
         is_git_installed = self.git_badge.text() == "Installed"
-        self.btn_install_helpers.setEnabled(not busy and is_git_installed)
-        self.btn_clone_dotfiles.setEnabled(not busy and is_git_installed)
+        self.btn_install_helpers.setEnabled(
+            not busy
+            and is_git_installed
+            and self.btn_install_helpers.text() != "Updated"
+        )
+        self.btn_clone_dotfiles.setEnabled(
+            not busy
+            and is_git_installed
+            and self.btn_clone_dotfiles.text() != "Updated"
+        )
         self.btn_run_task.setEnabled(not busy and self.task_selector.count() > 0)
         self.btn_run_my_task.setEnabled(not busy and self.my_task_selector.count() > 0)
-        self.btn_run_recent_task.setEnabled(
-            not busy and self.recent_task_selector.count() > 0
-        )
-        self.btn_clear_recent.setEnabled(
-            not busy and self.recent_task_selector.count() > 0
-        )
 
         if status:
             self.status_label.setText(status)
@@ -894,20 +874,26 @@ class MainWindow(fluentqt.Window):
             self.git_badge.setLevel(InfoLevel.WARNING)
             self.btn_install_git.setEnabled(True)
 
+        is_git_installed = bool(info.get("git_installed", False))
+
         if info["helpers_installed"]:
             if info.get("helpers_updated", True):
                 self.helpers_badge.setText("Installed")
                 self.helpers_badge.setLevel(InfoLevel.SUCCESS)
+                self.btn_install_helpers.setText("Updated")
+                self.btn_install_helpers.setEnabled(False)
             else:
                 self.helpers_badge.setText("Not updated")
                 self.helpers_badge.setLevel(InfoLevel.WARNING)
-            self.btn_install_helpers.setText("Update helpers")
+                self.btn_install_helpers.setText("Needs update")
+                self.btn_install_helpers.setEnabled(is_git_installed)
             if info.get("helpers_user") and not self.tb_helpers_user.text().strip():
                 self.tb_helpers_user.setText(info["helpers_user"])
         else:
             self.helpers_badge.setText("Not installed")
             self.helpers_badge.setLevel(InfoLevel.ERROR)
             self.btn_install_helpers.setText("Clone helpers")
+            self.btn_install_helpers.setEnabled(is_git_installed)
             if not self.tb_helpers_user.text().strip():
                 self.tb_helpers_user.setText(info.get("helpers_user", "alanlivio"))
 
@@ -915,20 +901,20 @@ class MainWindow(fluentqt.Window):
             if info.get("dotfiles_updated", True):
                 self.dotfiles_badge.setText("Installed")
                 self.dotfiles_badge.setLevel(InfoLevel.SUCCESS)
+                self.btn_clone_dotfiles.setText("Updated")
+                self.btn_clone_dotfiles.setEnabled(False)
             else:
                 self.dotfiles_badge.setText("Not updated")
                 self.dotfiles_badge.setLevel(InfoLevel.WARNING)
-            self.btn_clone_dotfiles.setText("Update dotfiles")
+                self.btn_clone_dotfiles.setText("Needs update")
+                self.btn_clone_dotfiles.setEnabled(is_git_installed)
             if info["dotfiles_user"] and not self.tb_username.text().strip():
                 self.tb_username.setText(info["dotfiles_user"])
         else:
             self.dotfiles_badge.setText("Not installed")
             self.dotfiles_badge.setLevel(InfoLevel.ERROR)
             self.btn_clone_dotfiles.setText("Clone dotfiles")
-
-        is_git_installed = bool(info.get("git_installed", False))
-        self.btn_install_helpers.setEnabled(is_git_installed)
-        self.btn_clone_dotfiles.setEnabled(is_git_installed)
+            self.btn_clone_dotfiles.setEnabled(is_git_installed)
 
         if info.get("helpers_path"):
             self.helpers_label.setToolTip(f"Local path: {info['helpers_path']}")
@@ -1053,8 +1039,12 @@ class MainWindow(fluentqt.Window):
                     if version:
                         self.git_badge.setToolTip(version)
                     self.btn_install_git.setEnabled(False)
-                    self.btn_install_helpers.setEnabled(True)
-                    self.btn_clone_dotfiles.setEnabled(True)
+                    self.btn_install_helpers.setEnabled(
+                        self.btn_install_helpers.text() != "Updated"
+                    )
+                    self.btn_clone_dotfiles.setEnabled(
+                        self.btn_clone_dotfiles.text() != "Updated"
+                    )
 
         self.run_worker_command(
             ps_exe,
@@ -1142,58 +1132,6 @@ class MainWindow(fluentqt.Window):
                 on_success_msg=f"dotfiles cloned at {target_dir}",
             )
 
-    def _load_recent_tasks(self):
-        try:
-            settings = QSettings("cli-helpers", "gui")
-            val = settings.value("recent_tasks", "[]")
-            if isinstance(val, str):
-                tasks = json.loads(val)
-            elif isinstance(val, list):
-                tasks = val
-            else:
-                tasks = []
-            return [t for t in tasks if isinstance(t, str) and t.strip()]
-        except Exception:
-            return []
-
-    def _save_recent_tasks(self, tasks):
-        try:
-            settings = QSettings("cli-helpers", "gui")
-            settings.setValue("recent_tasks", json.dumps(tasks))
-        except Exception:
-            pass
-
-    def add_recent_task(self, task_name):
-        if not task_name:
-            return
-        tasks = self._load_recent_tasks()
-        if task_name in tasks:
-            tasks.remove(task_name)
-        tasks.insert(0, task_name)
-        tasks = tasks[:15]
-        self._save_recent_tasks(tasks)
-        self._update_recent_selector(tasks)
-
-    def clear_recent_tasks(self):
-        self._save_recent_tasks([])
-        self._update_recent_selector([])
-
-    def _update_recent_selector(self, tasks=None):
-        if tasks is None:
-            tasks = self._load_recent_tasks()
-        self.recent_task_selector.clear()
-        if tasks:
-            self.recent_task_selector.addItems(tasks)
-            self.recent_task_selector.setCurrentIndex(0)
-            is_busy = bool(
-                hasattr(self, "progress_bar") and self.progress_bar.isVisible()
-            )
-            self.btn_run_recent_task.setEnabled(not is_busy)
-            self.btn_clear_recent.setEnabled(not is_busy)
-        else:
-            self.btn_run_recent_task.setEnabled(False)
-            self.btn_clear_recent.setEnabled(False)
-
     def run_task(self):
         selected_task = self.task_selector.currentText().strip()
         self.execute_task(selected_task)
@@ -1202,15 +1140,9 @@ class MainWindow(fluentqt.Window):
         selected_task = self.my_task_selector.currentText().strip()
         self.execute_task(selected_task)
 
-    def run_recent_task(self):
-        selected_task = self.recent_task_selector.currentText().strip()
-        self.execute_task(selected_task)
-
     def execute_task(self, selected_task):
         if not selected_task:
             return
-
-        self.add_recent_task(selected_task)
 
         self.add_output(f">>> Running {selected_task}...")
         helpers_path = self.get_cli_helpers_path()

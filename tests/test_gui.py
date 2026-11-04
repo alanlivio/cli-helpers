@@ -33,7 +33,6 @@ class TestGui(unittest.TestCase):
         self.window = MainWindow(refresh=False)
 
     def tearDown(self):
-        self.window.clear_recent_tasks()
         self.window.close()
         for worker in [
             getattr(self.window, "_active_worker", None),
@@ -94,7 +93,6 @@ class TestGui(unittest.TestCase):
         self.assertFalse(self.window.btn_install_winget.isEnabled())
         self.assertFalse(self.window.btn_install_git.isEnabled())
         self.assertFalse(self.window.btn_run_my_task.isEnabled())
-        self.assertFalse(self.window.btn_run_recent_task.isEnabled())
 
         self.window.set_busy(False, "Done")
         self.assertEqual(self.window.status_label.text(), "Done")
@@ -121,12 +119,12 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.helpers_badge.level, InfoLevel.SUCCESS)
         self.assertEqual(self.window.dotfiles_badge.text(), "Installed")
         self.assertEqual(self.window.dotfiles_badge.level, InfoLevel.SUCCESS)
-        self.assertEqual(self.window.btn_install_helpers.text(), "Update helpers")
-        self.assertEqual(self.window.btn_clone_dotfiles.text(), "Update dotfiles")
+        self.assertEqual(self.window.btn_install_helpers.text(), "Updated")
+        self.assertEqual(self.window.btn_clone_dotfiles.text(), "Updated")
         self.assertEqual(self.window.tb_helpers_user.text(), "helperuser")
         self.assertEqual(self.window.tb_username.text(), "testuser")
-        self.assertTrue(self.window.btn_install_helpers.isEnabled())
-        self.assertTrue(self.window.btn_clone_dotfiles.isEnabled())
+        self.assertFalse(self.window.btn_install_helpers.isEnabled())
+        self.assertFalse(self.window.btn_clone_dotfiles.isEnabled())
 
     def test_status_not_updated(self):
         mock_info = {
@@ -142,8 +140,12 @@ class TestGui(unittest.TestCase):
         self.window._on_status_ready(mock_info)
         self.assertEqual(self.window.helpers_badge.text(), "Not updated")
         self.assertEqual(self.window.helpers_badge.level, InfoLevel.WARNING)
+        self.assertEqual(self.window.btn_install_helpers.text(), "Needs update")
+        self.assertTrue(self.window.btn_install_helpers.isEnabled())
         self.assertEqual(self.window.dotfiles_badge.text(), "Not updated")
         self.assertEqual(self.window.dotfiles_badge.level, InfoLevel.WARNING)
+        self.assertEqual(self.window.btn_clone_dotfiles.text(), "Needs update")
+        self.assertTrue(self.window.btn_clone_dotfiles.isEnabled())
 
     def test_status_not_installed(self):
         mock_info = {
@@ -182,30 +184,6 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.my_task_selector.count(), 0)
         self.assertFalse(self.window.btn_run_my_task.isEnabled())
 
-    def test_recent_tasks(self):
-        self.window.clear_recent_tasks()
-        self.assertEqual(self.window.recent_task_selector.count(), 0)
-        self.assertFalse(self.window.btn_run_recent_task.isEnabled())
-
-        self.window.add_recent_task("my_task_1")
-        self.assertEqual(self.window.recent_task_selector.count(), 1)
-        self.assertEqual(self.window.recent_task_selector.currentText(), "my_task_1")
-        self.assertTrue(self.window.btn_run_recent_task.isEnabled())
-
-        self.window.add_recent_task("win_task_2")
-        self.assertEqual(self.window.recent_task_selector.count(), 2)
-        self.assertEqual(self.window.recent_task_selector.itemText(0), "win_task_2")
-        self.assertEqual(self.window.recent_task_selector.itemText(1), "my_task_1")
-
-        self.window.add_recent_task("my_task_1")
-        self.assertEqual(self.window.recent_task_selector.count(), 2)
-        self.assertEqual(self.window.recent_task_selector.itemText(0), "my_task_1")
-        self.assertEqual(self.window.recent_task_selector.itemText(1), "win_task_2")
-
-        self.window.clear_recent_tasks()
-        self.assertEqual(self.window.recent_task_selector.count(), 0)
-        self.assertFalse(self.window.btn_run_recent_task.isEnabled())
-
     def test_run_methods_delegation(self):
         executed = []
         with patch.object(
@@ -218,10 +196,6 @@ class TestGui(unittest.TestCase):
             self.window.my_task_selector.addItem("my_test")
             self.window.run_my_task()
             self.assertEqual(executed, ["win_test", "my_test"])
-
-            self.window.recent_task_selector.addItem("recent_test")
-            self.window.run_recent_task()
-            self.assertEqual(executed, ["win_test", "my_test", "recent_test"])
 
     def test_command_worker_execution(self):
         worker = HelperWorker(sys.executable, ["-c", "print('worker_test_line')"])
@@ -389,7 +363,7 @@ class TestGui(unittest.TestCase):
         self.app.processEvents()
         scroll_content = self.window.scroll_area.widget()
         self.assertIsNotNone(scroll_content)
-        self.assertGreaterEqual(scroll_content.height(), 450)
+        self.assertGreaterEqual(scroll_content.height(), 400)
 
 
 if __name__ == "__main__":
