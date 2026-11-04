@@ -3,6 +3,13 @@ function _wsl_auto_open() {
     if [[ -z "$executable" ]]; then
         return 1
     fi
+    if [[ ! -x "$executable" ]] && ! type -P "$executable" &>/dev/null; then
+        if [[ "$executable" == "antigravity-ide" ]] && declare -F _antigravity_ide_client_executable >/dev/null; then
+            executable="$(_antigravity_ide_client_executable)" || return 1
+        elif [[ "$executable" == "code" ]] && declare -F _code_client_executable >/dev/null; then
+            executable="$(_code_client_executable)" || return 1
+        fi
+    fi
     shift
     if [[ "$1" == -* ]]; then
         "$executable" "$@"
@@ -109,10 +116,16 @@ function _code_client_executable() {
     return 1
 }
 
+function code_wsl_auto() {
+    local executable
+    executable="$(_code_client_executable)" || return 1
+    _wsl_auto_open "$executable" "$@"
+}
+
 function code_alias_to_auto_open_wsl() {
     local executable="$(_code_client_executable)"
     if [[ -n "$executable" ]]; then
-        alias code="_wsl_auto_open '$executable'"
+        alias code="code_wsl_auto"
     fi
 }
 
@@ -184,9 +197,15 @@ function antigravity_ide_install_extensions_from_txt() {
     antigravity_ide_install_extensions "${extensions[@]}"
 }
 
+function antigravity_ide_wsl_auto() {
+    local executable
+    executable="$(_antigravity_ide_client_executable)" || return 1
+    _wsl_auto_open "$executable" "$@"
+}
+
 function antigravity_ide_alias_to_auto_open_wsl() {
     local executable="$(_antigravity_ide_client_executable)"
     if [[ -n "$executable" ]]; then
-        alias antigravity-ide="_wsl_auto_open '$executable'"
+        alias antigravity-ide="antigravity_ide_wsl_auto"
     fi
 }
