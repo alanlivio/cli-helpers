@@ -44,6 +44,59 @@ function winget_uninstall() {
     }
 }
 
+function winget_download_installer {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$package_id,
+        [string]$download_dir = "$env:TEMP\winget_downloads"
+    )
+    if (-not (Test-Path -Path $download_dir)) {
+        New-Item -ItemType Directory -Path $download_dir -Force | Out-Null
+    }
+    $target_dir = Join-Path -Path $download_dir -ChildPath $package_id
+    winget download --id $package_id --download-directory $target_dir --accept-source-agreements | Out-Null
+    $installer_file = Get-ChildItem -Path $target_dir -Recurse -File | Where-Object { $_.Extension -in '.exe', '.msi' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($installer_file) {
+        return  $installer_file.FullName
+    }
+    return $null
+}
+
+function winget_install_with_sudo_installer() {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$package_id
+    )
+    winget list --accept-source-agreements -q $package_id | Out-Null
+    if ($?) { return }
+    $installer_file = if (Test-Path -Path $package_id) { $package_id } else { winget_download_installer -package_id $package_id }
+    if (-not $installer_file) {
+        log_error "Installer file not found for $package_id"
+        return $false
+    }
+    if ($installer_file -notlike '*.exe' -and $installer_file -notlike '*.msi') {
+        log_error "Installer file must be .exe or .msi"
+        return $false
+    }
+    if (Get-Command _sudo_cred -ErrorAction SilentlyContinue) {
+        $cred = _sudo_cred
+        if ($cred) {
+            icacls ($installer_file -replace '/', '\') /grant "$($cred.UserName):(F)" > $null 2>&1
+        }
+    }
+    try {
+        if ($installer_file -like '*.exe') {
+            sudo $installer_file /SILENT /NORESTART
+        } elseif ($installer_file -like '*.msi') {
+            sudo msiexec /i $installer_file /qb /norestart
+        }
+        return $true
+    } catch {
+        log_error "Failed to install ${installer_file}: $_"
+        return $false
+    }
+}
+
 function winget_fix_cache() {
     if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping winget_fix_source"; return }
     Remove-Item -Path "$env:LOCALAPPDATA\Temp\WinGet\*" -Recurse -Force -ErrorAction SilentlyContinue
@@ -95,6 +148,88 @@ function wsl_get_default() {
 
 function wsl_terminate() {
     wsl -t (wsl_get_default)
+}
+
+function wsl_check_status {
+    $wsl_list = wsl -l -v
+    $vmmem_proc = Get-Process -Name "vmmem*" -ErrorAction SilentlyContinue
+    $lxss_service = Get-Service -Name "LxssManager" -ErrorAction SilentlyContinue
+    $wsl_service = Get-Service -Name "WSLService" -ErrorAction SilentlyContinue
+    $port_check = Test-NetConnection -ComputerName 127.0.0.1 -Port 22 -WarningAction SilentlyContinue
+    [PSCustomObject]@{
+        wsl_distros        = ($wsl_list -join "; ")
+        vmmem_running      = [bool]$vmmem_proc
+        vmmem_memory_mb    = if ($vmmem_proc) { [math]::Round($vmmem_proc.WorkingSet64 / 1MB, 2) } else { 0 }
+        lxss_status        = if ($lxss_service) { $lxss_service.Status } else { "NotFound" }
+        wsl_service_status = if ($wsl_service) { $wsl_service.Status } else { "NotFound" }
+        ssh_port_open      = $port_check.TcpTestSucceeded
+    }
+}
+
+function wsl_move_vhdx {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string]$target_dir,
+        [Parameter(Position = 1)]
+        [string]$distro = ""
+    )
+
+    if (-not $distro) {
+        $distro = wsl_get_default
+        if (-not $distro) { $distro = "Ubuntu" }
+    }
+
+    $distro_reg = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss\*" -ErrorAction SilentlyContinue |
+    Where-Object { $_.DistributionName -eq $distro } |
+    Select-Object -First 1
+
+    if (-not $distro_reg) {
+        log_error "WSL distribution '$distro' not found."
+        return
+    }
+
+    $target_dir = $target_dir -replace '/', '\'
+    if ($target_dir -match '^[A-Za-z]:$') {
+        $target_dir = "$target_dir\"
+    } else {
+        $target_dir = [System.IO.Path]::GetFullPath($target_dir)
+        if ($target_dir -notmatch '^[A-Za-z]:\\$') {
+            $target_dir = $target_dir.TrimEnd('\')
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $target_dir)) {
+        New-Item -ItemType Directory -Path $target_dir -Force | Out-Null
+    }
+
+    $target_base = $target_dir.TrimEnd('\')
+    $current_base = ($distro_reg.BasePath -replace '^\\\\\?\\', '').TrimEnd('\')
+    if ($current_base -ieq $target_base) {
+        log_msg "WSL distribution '$distro' is already located at $target_dir"
+        return
+    }
+
+    $vhd_name = if ($distro_reg.VhdFileName) { $distro_reg.VhdFileName } else { "ext4.vhdx" }
+    $src_vhdx = [System.IO.Path]::Combine("$current_base\", $vhd_name)
+    $dst_vhdx = [System.IO.Path]::Combine("$target_base\", $vhd_name)
+    if (-not (Test-Path -LiteralPath $src_vhdx)) {
+        log_error "VHDX file not found at $src_vhdx"
+        return
+    }
+
+    log_msg "Shutting down WSL..."
+    wsl.exe --shutdown
+
+    log_msg "Moving '$distro' VHDX from $src_vhdx to $dst_vhdx..."
+    wsl.exe --manage $distro --move "$target_base"
+
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $dst_vhdx)) {
+        Move-Item -LiteralPath $src_vhdx -Destination $dst_vhdx -Force -ErrorAction Stop
+        Set-ItemProperty -Path $distro_reg.PSPath -Name "BasePath" -Value $target_base -ErrorAction Stop
+    }
+
+    log_msg "Moved '$distro' VHDX to $dst_vhdx"
 }
 
 function wsl_start_if_wsl_folder {
