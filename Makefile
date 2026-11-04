@@ -29,7 +29,9 @@ clean:
 
 D2 ?= d2
 
-icons:
+icons: cli_helpers/resources/icon.ico
+
+cli_helpers/resources/icon.ico: cli_helpers/icon.d2
 	$(D2) --pad 0 cli_helpers/icon.d2 cli_helpers/resources/icon.svg
 	node -e "const fs=require('fs'),p='cli_helpers/resources/icon.svg';fs.writeFileSync(p,fs.readFileSync(p,'utf8').replace(/font-family: [^;]+;/, 'font-family: Consolas, monospace; font-weight: bold;'))"
 	npx --yes sharp-cli -i cli_helpers/resources/icon.svg -o cli_helpers/resources/icon.png resize 256 256
@@ -39,15 +41,17 @@ docs:
 	$(D2) --pad 0 docs/bash_flow.d2 docs/bash_flow.svg
 	$(D2) --pad 0 docs/powershell_flow.d2 docs/powershell_flow.svg
 
-gui: icons
-	python -m PyInstaller --noconfirm --clean --onefile --windowed --paths . --collect-all fluentqt --collect-all cli_helpers --add-data "cli_helpers/resources:cli_helpers/resources" --icon "cli_helpers/resources/icon.ico" $(if $(wildcard version_info.txt),--version-file version_info.txt) --name cli-helpers cli_helpers/__main__.py
+gui: dist/cli-helpers.exe
+
+dist/cli-helpers.exe: cli_helpers/resources/icon.ico $(wildcard cli_helpers/*.py) packaging/build_exe.py
+	python packaging/build_exe.py
 
 VERSION ?= $(shell python -c "from cli_helpers.version import __version__; print(__version__)")
 
-publish-gui: gui
+publish-gui: dist/cli-helpers.exe
 	@printf "SHA256 (exe): "
 	sha256sum dist/cli-helpers.exe
 	gh release upload v$(VERSION) dist/cli-helpers.exe --clobber || gh release create v$(VERSION) dist/cli-helpers.exe --generate-notes
 
-test: icons
+test: cli_helpers/resources/icon.ico
 	python -m unittest discover -s tests

@@ -307,9 +307,11 @@ class MainWindow(fluentqt.Window):
         self.resize(720, 800)
 
         app = QApplication.instance()
+        self._focus_connected = False
         if app:
             app.aboutToQuit.connect(self.kill_workers)
             app.focusChanged.connect(self._on_focus_changed)
+            self._focus_connected = True
 
         self._active_worker = None
         self._status_worker = None
@@ -1253,7 +1255,8 @@ class MainWindow(fluentqt.Window):
 
     def closeEvent(self, a0):
         app = QApplication.instance()
-        if app:
+        if app and getattr(self, "_focus_connected", False):
+            self._focus_connected = False
             try:
                 app.focusChanged.disconnect(self._on_focus_changed)
             except Exception:
