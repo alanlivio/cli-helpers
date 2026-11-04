@@ -90,6 +90,19 @@ function git_branch_remove_local_and_remote {
     git push origin --delete $branchname
 }
 
+function git_branch_merge_into_main {
+    param ( [string]$branchname = "dev" )
+    git checkout main
+    if ($LASTEXITCODE -ne 0) { return }
+    git pull origin main
+    if ($LASTEXITCODE -ne 0) { return }
+    git merge $branchname
+    if ($LASTEXITCODE -ne 0) { return }
+    git push origin main
+    if ($LASTEXITCODE -ne 0) { return }
+    git_branch_remove_local_and_remote $branchname
+}
+
 function git_push_after_amend_all {
     git commit -a --amend --no-edit
     git push --force

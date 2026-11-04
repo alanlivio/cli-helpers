@@ -90,6 +90,15 @@ function git_branch_remove_local_and_remote() {
     git push origin --delete $1
 }
 
+function git_branch_merge_into_main() {
+    local branch="${1:-dev}"
+    git checkout main &&
+        git pull origin main &&
+        git merge "$branch" &&
+        git push origin main &&
+        git_branch_remove_local_and_remote "$branch"
+}
+
 function git_push_after_amend_all() {
     git commit -a --amend --no-edit
     git push --force
