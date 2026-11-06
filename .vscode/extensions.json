@@ -2,7 +2,7 @@
     "recommendations": [
         "davidanson.vscode-markdownlint",
         "ms-vscode.powershell",
-        "foxundermoon.shell-format",
+        "MufanQiu.shfmt-ide",
         "terrastruct.d2"
     ]
 }

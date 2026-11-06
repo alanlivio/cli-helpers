@@ -1,7 +1,7 @@
-HELPERS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
+HELPERS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd -P)"
 
-function log_error { echo -e "\033[00;31m-- $* \033[00m";}
-function log_msg { echo -e "\033[00;33m-- $* \033[00m";}
+function log_error { echo -e "\033[00;31m-- $* \033[00m"; }
+function log_msg { echo -e "\033[00;33m-- $* \033[00m"; }
 alias bashrc_reload='source $HOME/.bashrc'
 
 # -- load os/<name>.bash files --
@@ -15,7 +15,7 @@ fi
 
 for file in "$HELPERS_DIR/programs/"*.bash; do
     program=$(basename ${file%.*})
-    if type $program &>/dev/null; then
+    if type $program &> /dev/null; then
         source $file
     fi
 done
@@ -25,5 +25,3 @@ done
 if [[ -f "$HELPERS_DIR/../dotfiles/init.sh" ]]; then
     source "$HELPERS_DIR/../dotfiles/init.sh"
 fi
-
-
