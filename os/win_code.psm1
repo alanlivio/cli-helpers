@@ -206,3 +206,10 @@ function antigravity_ide_win_modern_context_menu_remove {
     param([string]$name = "antigravity_ide_wsl_auto")
     win_modern_context_menu_remove -name $name
 }
+
+function antigravity_ide_fix_menu_start {
+    $sh = New-Object -ComObject WScript.Shell
+    $sc = $sh.CreateShortcut("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Antigravity IDE\Antigravity IDE.lnk")
+    $sc.Arguments = "--no-sandbox"
+    $sc.Save()
+}
