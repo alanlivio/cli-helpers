@@ -122,15 +122,6 @@ function win_os_upgrade() {
 
 # -- coreutils --
 
-function win_ps_coreutils_aliases() {
-    if ($is_windows -and (Get-Command ls.exe -ErrorAction SilentlyContinue)) {
-        Set-Alias -Name curl -Value curl.exe -Scope Global -Option AllScope -Force
-        foreach ($cmd in @('ls', 'cp', 'echo', 'pwd', 'mv', 'cat', 'rm', 'sort')) {
-            Set-Alias -Name $cmd -Value "$cmd.exe" -Scope Global -Option AllScope -Force
-        }
-    }
-}
-
 function du_folder_list_sorted_by_size {
     du.exe -ahd 1 | sort.exe -h
 }
@@ -1339,7 +1330,16 @@ function win_declutter_xbox() {
     winget_uninstall Microsoft.XboxSpeechToTextOverlay_8wekyb3d8bbwe
 }
 
-function win_ps_prompt_with_slash() {
+function ps_coreutils_aliases() {
+    if ($is_windows -and (Get-Command ls.exe -ErrorAction SilentlyContinue)) {
+        Set-Alias -Name curl -Value curl.exe -Scope Global -Option AllScope -Force
+        foreach ($cmd in @('ls', 'cp', 'echo', 'pwd', 'mv', 'cat', 'rm', 'sort')) {
+            Set-Alias -Name $cmd -Value "$cmd.exe" -Scope Global -Option AllScope -Force
+        }
+    }
+}
+
+function ps_prompt_with_slash() {
     function Global:prompt() {
         $rawPath = $pwd.Path -replace '^[^\:]+::', ''
         if ($rawPath -match '^\\+wsl') { 
@@ -1356,7 +1356,7 @@ function win_ps_prompt_with_slash() {
     }
 }
 
-function win_ps_expansion_with_slash() {
+function ps_expansion_with_slash() {
     # https://stackoverflow.com/questions/8264655/how-to-make-powershell-tab-completion-work-like-bash
     Set-PSReadlineOption -BellStyle None
     Set-PSReadlineKeyHandler -Key Tab -Function MenuComplete 
@@ -1560,6 +1560,41 @@ function win_ps_expansion_with_slash() {
         }
         end { try { $steppablePipeline.End() } catch { $PSCmdlet.ThrowTerminatingError($_) } }
     }
+}
+
+function ps_install_readline() {
+    if (-not (Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue)) {
+        Install-PackageProvider -Name NuGet -Scope CurrentUser -Force | Out-Null
+    }
+    if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+    }
+    $installed = Get-Module -ListAvailable PSReadLine | Sort-Object Version -Descending | Select-Object -First 1
+    $latest = Find-Module -Name PSReadLine
+    if (-not $installed -or $installed.Version -lt [version]$latest.Version) {
+        Install-Module -Name PSReadLine -Scope CurrentUser -Force -SkipPublisherCheck
+    }
+}
+
+function ps_expansion_for_makefiles() {
+    if (Get-Command get_make_targets -ErrorAction SilentlyContinue) { return }
+    function global:get_make_targets {
+        param($word_to_complete, $command_ast, $cursor_position)
+        $makefile_path = get-item -path "Makefile", "makefile" -erroraction silentlycontinue | select-object -first 1
+        if (-not $makefile_path) { return }
+        $targets = select-string -path $makefile_path.fullname -pattern '^[a-zA-Z0-9_\.-]+:' | foreach-object {
+            ($_.line -split ':')[0].trim()
+        } | where-object { $_ -notmatch '^\.' }
+        $targets | where-object { $_ -like "$word_to_complete*" } | foreach-object {
+            [system.management.automation.completionresult]::new($_, $_, 'parametervalue', $_)
+        }
+    }
+    register-argumentcompleter -commandname make -native -scriptblock $function:get_make_targets
+}
+
+function ps_execution_policy() {
+    if ((Get-ExecutionPolicy -Scope CurrentUser) -eq 'RemoteSigned') { return }
+    set-executionpolicy -executionpolicy remotesigned -scope currentuser -force
 }
 
 Export-ModuleMember -Function *
