@@ -1180,7 +1180,6 @@ function win_declutter_osapps() {
     winget_uninstall 9NZKPSTSNW4P # Game Bar
     winget_uninstall 9WZDNCRFHVFW # News
     winget_uninstall Microsoft.WindowsMaps
-    winget_uninstall Microsoft.People
     winget_uninstall 9WZDNCRFJ3P2 # Films & TV
     winget_uninstall 9NFTCH6J7FHV # Power Automate
     winget_uninstall 9NMPJ99VJBWV # Phone Link
