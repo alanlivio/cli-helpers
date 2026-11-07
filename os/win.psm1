@@ -194,16 +194,22 @@ function wsl_move_vhdx {
         New-Item -ItemType Directory -Path $target_dir -Force | Out-Null
     }
 
-    $target_base = $target_dir.TrimEnd('\')
-    $current_base = ($distro_reg.BasePath -replace '^\\\\\?\\', '').TrimEnd('\')
-    if ($current_base -ieq $target_base) {
+    $current_base = ($distro_reg.BasePath -replace '^\\\\\?\\', '')
+    if ($current_base -match '^[A-Za-z]:$') {
+        $current_base = "$current_base\"
+    } elseif ($current_base -notmatch '^[A-Za-z]:\\$') {
+        $current_base = $current_base.TrimEnd('\')
+    }
+
+    if ($current_base -ieq $target_dir) {
+        Set-ItemProperty -Path $distro_reg.PSPath -Name "BasePath" -Value $target_dir -ErrorAction SilentlyContinue
         log_msg "WSL distribution '$distro' is already located at $target_dir"
         return
     }
 
     $vhd_name = if ($distro_reg.VhdFileName) { $distro_reg.VhdFileName } else { "ext4.vhdx" }
-    $src_vhdx = [System.IO.Path]::Combine("$current_base\", $vhd_name)
-    $dst_vhdx = [System.IO.Path]::Combine("$target_base\", $vhd_name)
+    $src_vhdx = [System.IO.Path]::Combine($current_base, $vhd_name)
+    $dst_vhdx = [System.IO.Path]::Combine($target_dir, $vhd_name)
     if (-not (Test-Path -LiteralPath $src_vhdx)) {
         log_error "VHDX file not found at $src_vhdx"
         return
@@ -213,12 +219,13 @@ function wsl_move_vhdx {
     wsl.exe --shutdown
 
     log_msg "Moving '$distro' VHDX from $src_vhdx to $dst_vhdx..."
-    wsl.exe --manage $distro --move "$target_base"
+    $manage_target = $target_dir.TrimEnd('\')
+    wsl.exe --manage $distro --move "$manage_target"
 
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $dst_vhdx)) {
         Move-Item -LiteralPath $src_vhdx -Destination $dst_vhdx -Force -ErrorAction Stop
-        Set-ItemProperty -Path $distro_reg.PSPath -Name "BasePath" -Value $target_base -ErrorAction Stop
     }
+    Set-ItemProperty -Path $distro_reg.PSPath -Name "BasePath" -Value $target_dir -ErrorAction Stop
 
     log_msg "Moved '$distro' VHDX to $dst_vhdx"
 }
