@@ -1,3 +1,11 @@
+function pip_upgrade_pip() {
+    $out = python.exe -m pip index versions pip 2>$null
+    $installed = ($out | Select-String 'INSTALLED:\s*(\S+)').Matches.Groups[1].Value
+    $latest = ($out | Select-String 'LATEST:\s*(\S+)').Matches.Groups[1].Value
+    if ($installed -and $latest -and ($installed -ne $latest)) {
+        python.exe -m pip install --upgrade pip
+    }
+}
 function pip_install() {
     $packages = @()
     for ($i = 0; $i -lt $args.Count; $i++) {

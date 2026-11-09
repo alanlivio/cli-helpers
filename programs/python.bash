@@ -1,5 +1,15 @@
 alias python_clean_cache='find . | grep -E "(/__pycache__$|\.pyc$|\.pyo$)" | xargs rm -rf'
 
+function pip_upgrade_pip() {
+    local out installed latest
+    out="$(python -m pip index versions pip 2>/dev/null)"
+    installed="$(echo "$out" | awk '/INSTALLED:/ {print $2}')"
+    latest="$(echo "$out" | awk '/LATEST:/ {print $2}')"
+    if [[ -n "$installed" && -n "$latest" && "$installed" != "$latest" ]]; then
+        python -m pip install --upgrade pip
+    fi
+}
+
 function pip_install() {
     local pkgs=()
     while [[ $# -gt 0 ]]; do
@@ -9,7 +19,7 @@ function pip_install() {
                     line="${line%%#*}"
                     line="$(echo "$line" | xargs)"
                     [[ -n "$line" ]] && pkgs+=("$line")
-                done <"$2"
+                done < "$2"
             fi
             shift 2
         else
@@ -21,7 +31,7 @@ function pip_install() {
     for pkg in "${pkgs[@]}"; do
         local name="${pkg%%[=><~;@]*}"
         name="$(echo "$name" | xargs)"
-        pip show "$name" &>/dev/null || pip install -U "$pkg"
+        pip show "$name" &> /dev/null || pip install -U "$pkg"
     done
 }
 
