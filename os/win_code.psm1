@@ -164,7 +164,7 @@ function antigravity_ide_install_extensions_from_txt {
     antigravity_ide_install_extensions -extensions $extensions
 }
 
-function antigravity_ide_wsl_auto {
+function antigravity_ide_open_wsl_auto {
     param(
         [Parameter(Position = 0)] [string]$folder_path = (Get-Location).ProviderPath,
         [Parameter(ValueFromRemainingArguments = $true)] [string[]]$extra_args
@@ -176,18 +176,18 @@ function antigravity_ide_wsl_auto {
     _win_wsl_auto -executable $executable -folder_path $folder_path -extra_args $extra_args
 }
 
-function antigravity_ide_alias_to_auto_open_wsl {
+function antigravity_ide_alias_to_open_wsl_auto {
     $executable = _antigravity_ide_get_executable
     if ($executable) {
-        Set-Alias -Name antigravity-ide -Value antigravity_ide_wsl_auto -Scope Global -Option AllScope -Force
+        Set-Alias -Name antigravity-ide -Value antigravity_ide_open_wsl_auto -Scope Global -Option AllScope -Force
     }
 }
 
 function antigravity_ide_win_modern_context_menu_add {
     param(
-        [string]$name = "antigravity_ide_wsl_auto",
+        [string]$name = "antigravity_ide_open_wsl_auto",
         [string]$title = "Open with Antigravity IDE (Auto WSL)",
-        [string]$ps_function = "antigravity_ide_wsl_auto",
+        [string]$ps_function = "antigravity_ide_open_wsl_auto",
         [string]$icon,
         [switch]$force
     )
@@ -203,7 +203,7 @@ function antigravity_ide_win_modern_context_menu_add {
 }
 
 function antigravity_ide_win_modern_context_menu_remove {
-    param([string]$name = "antigravity_ide_wsl_auto")
+    param([string]$name = "antigravity_ide_open_wsl_auto")
     win_modern_context_menu_remove -name $name
 }
 

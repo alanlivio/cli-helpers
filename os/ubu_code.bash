@@ -197,15 +197,15 @@ function antigravity_ide_install_extensions_from_txt() {
     antigravity_ide_install_extensions "${extensions[@]}"
 }
 
-function antigravity_ide_wsl_auto() {
+function antigravity_ide_open_wsl_auto() {
     local executable
     executable="$(_antigravity_ide_client_executable)" || return 1
     _wsl_auto_open "$executable" "$@"
 }
 
-function antigravity_ide_alias_to_auto_open_wsl() {
+function antigravity_ide_alias_to_open_wsl_auto() {
     local executable="$(_antigravity_ide_client_executable)"
     if [[ -n "$executable" ]]; then
-        alias antigravity-ide="antigravity_ide_wsl_auto"
+        alias antigravity-ide="antigravity_ide_open_wsl_auto"
     fi
 }
