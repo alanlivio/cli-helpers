@@ -22,11 +22,14 @@ function my_dotfiles() {
     explorer_hide_home_dotfiles
 }
 
-# -- winget/update --
+# -- winget --
 
 function winget_upgrade_user() {
     log_msg "winget upgrade scope user"
-    winget upgrade --all --accept-package-agreements --accept-source-agreements --scope user
+    $upgrades = winget upgrade --scope user --accept-source-agreements
+    if ($upgrades -notmatch "No installed package found") {
+        winget upgrade --all --accept-package-agreements --accept-source-agreements --scope user
+    }
 }
 
 function winget_install() {
