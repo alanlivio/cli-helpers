@@ -1330,6 +1330,7 @@ function win_declutter_xbox() {
     Set-ItemProperty -Path $game_dvr_key -Name "HistoricalCaptureEnabled" -Value 0 -Type Dword
     Set-ItemProperty -Path $game_store_key -Name "GameDVR_Enabled" -Value 0 -Type Dword
     winget_uninstall 9MV0B5HZVK9Z
+    winget_uninstall "Xbox Game Bar Plugin" 
     winget_uninstall "Xbox TCUI" 
     winget_uninstall "Xbox Identity Provider" 
     winget_uninstall "Microsoft Edge Game Assist" 
