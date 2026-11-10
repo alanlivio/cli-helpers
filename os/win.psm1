@@ -1604,4 +1604,16 @@ function ps_execution_policy() {
     set-executionpolicy -executionpolicy remotesigned -scope currentuser -force
 }
 
+function ps_aliases_python_scripts($folder) {
+    if (-not (Test-Path $folder)) { return }
+    Get-ChildItem -Path (Join-Path $folder "*.py") -File -ErrorAction SilentlyContinue | ForEach-Object {
+        $script_path = $_.FullName.Replace("'", "''")
+        $name = $_.BaseName
+        Set-Item -Path "Function:\global:_bin_$name" -Value ([ScriptBlock]::Create("& python '$script_path' @args"))
+        foreach ($alias in (@($name, ($name -replace '_', '-'), ($name -replace '-', '_')) | Select-Object -Unique)) {
+            Set-Alias -Name $alias -Value "_bin_$name" -Scope Global -Option AllScope -Force
+        }
+    }
+}
+
 Export-ModuleMember -Function *
