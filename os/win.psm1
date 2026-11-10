@@ -1133,7 +1133,7 @@ function win_declutter_ui() {
     
     # hide desktop icons
     Set-ItemProperty -Path $advanced_key -Name "HideIcons" -Value 1
-    New-Item -Path $taskbar_key -Force | Out-Null
+    if (-not (Test-Path $taskbar_key)) { New-Item -Path $taskbar_key -Force | Out-Null }
     Set-ItemProperty -Path $taskbar_key -Name "TaskbarEndTask" -Value 1 -Force
     
     # simple taskbar and multitasking
@@ -1224,7 +1224,7 @@ function win_declutter_unused_keyboard_shortcuts() {
     }
     
     # "disable AutoRotation shortcuts"
-    New-Item -Path $igf_key -Force | Out-Null
+    if (-not (Test-Path $igf_key)) { New-Item -Path $igf_key -Force | Out-Null }
     Set-ItemProperty -Path $igf_key -Name "HotKeys" -Value 'Disable'
 
     # "disable language shortcuts"
@@ -1233,18 +1233,18 @@ function win_declutter_unused_keyboard_shortcuts() {
     Set-ItemProperty -Path $toggle_key -Name "Layout Hotkey" -Value '3' -Type String
 
     # "disable acessibility shortcuts"
-    New-Item -Path $access_key -Force | Out-Null
-    New-Item -Path "$access_key\ToggleKeys" -Force | Out-null
-    New-Item -Path "$access_key\StickyKeys" -Force | Out-null
-    New-Item -Path "$access_key\Keyboard Response"  -Force | Out-null
+    if (-not (Test-Path $access_key)) { New-Item -Path $access_key -Force | Out-Null }
+    if (-not (Test-Path "$access_key\ToggleKeys")) { New-Item -Path "$access_key\ToggleKeys" -Force | Out-Null }
+    if (-not (Test-Path "$access_key\StickyKeys")) { New-Item -Path "$access_key\StickyKeys" -Force | Out-Null }
+    if (-not (Test-Path "$access_key\Keyboard Response")) { New-Item -Path "$access_key\Keyboard Response" -Force | Out-Null }
     Set-ItemProperty -Path "$access_key\ToggleKeys" -Name "Flags" -Value '58' -Type String
     Set-ItemProperty -Path "$access_key\StickyKeys" -Name "Flags" -Value '26' -Type String
     Set-ItemProperty -Path "$access_key\Keyboard Response" -Name "Flags" -Value '122' -Type String
-    New-Item -Path $narrator_key -Force | Out-Null
+    if (-not (Test-Path $narrator_key)) { New-Item -Path $narrator_key -Force | Out-Null }
     Set-ItemProperty -Path $narrator_key -Name "NarratorRunning" -Value 0 -Type DWord
     Set-ItemProperty -Path $narrator_key -Name "StartNarratorHotkey" -Value 0 -Type DWord 
     Set-ItemProperty -Path $narrator_key -Name "Autostart" -Value 0 -Type DWord 
-    New-Item -Path $narrator_cp_key -Force | Out-Null
+    if (-not (Test-Path $narrator_cp_key)) { New-Item -Path $narrator_cp_key -Force | Out-Null }
     Set-ItemProperty -Path $narrator_cp_key -Name "WinEnterLaunchEnabled" -Value 0 -Type DWord 
 }
 
@@ -1259,8 +1259,8 @@ function win_declutter_web_search_and_widgets() {
     winget_uninstall 9PC1H9VN18CM # start experiences
     $search_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
     $search_settings_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\SearchSettings"
-    New-Item -Path $search_key -Force | Out-Null
-    New-Item -Path $search_settings_key -Force | Out-Null
+    if (-not (Test-Path $search_key)) { New-Item -Path $search_key -Force | Out-Null }
+    if (-not (Test-Path $search_settings_key)) { New-Item -Path $search_settings_key -Force | Out-Null }
     Set-ItemProperty -Path $search_key -Name "BingSearchEnabled" -Value 0 -Type DWord
     Set-ItemProperty -Path $search_settings_key -Name "IsDeviceSearchHistoryEnabled" -Value 0 -Type DWord
     Set-ItemProperty -Path $search_settings_key -Name "IsDynamicSearchBoxEnabled" -Value 0 -Type DWord
@@ -1309,7 +1309,7 @@ function win_declutter_taskbar_startmenu() {
     Set-ItemProperty -Path $advanced_key -Name "TaskbarAnimations" -Value 0 -Type Dword
     Set-ItemProperty -Path $pen_key -Name "PenWorkspaceButtonDesiredVisibility" -Type DWord -Value 0 -Force | Out-Null
     Set-ItemProperty -Path $touch_key -Name "TipbandDesiredVisibility" -Type DWord -Value 0 -Force | Out-Null
-    New-Item -Path $bluetooth_key -Force | Out-Null
+    if (-not (Test-Path $bluetooth_key)) { New-Item -Path $bluetooth_key -Force | Out-Null }
     Set-ItemProperty -Path $bluetooth_key -Name "Notification Area Icon" -Value 0 -Type DWord | Out-Null
     
     # taskbar search
