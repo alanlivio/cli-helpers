@@ -646,7 +646,8 @@ function win_path_list() {
 
 function explorer_restart() {
     log_msg "explorer_restart"
-    Stop-Process -Force -ErrorAction SilentlyContinue -ProcessName Explorer
+    taskkill /f /im explorer.exe *>$null
+    Start-Process explorer.exe
 }
 
 function explorer_reset_shell_folders {
@@ -695,11 +696,6 @@ function explorer_hide_home_dotfiles {
         $i = Get-Item -LiteralPath $p -Force
         if (-not $i.Attributes.HasFlag($hidden)) { $i.Attributes = $i.Attributes -bor $hidden }
     }
-}
-
-function explorer_restart {
-    taskkill /f /im explorer.exe
-    Start-Process explorer.exe
 }
 
 # -- office --
@@ -1093,7 +1089,7 @@ function win_modern_context_menu_remove {
     }
 }
 
-# -- win_clutter --
+# -- my_declutter --
 
 function win_declutter_all() {
     win_declutter_ui
