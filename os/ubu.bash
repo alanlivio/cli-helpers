@@ -4,6 +4,7 @@ function my_declutter() {
     user_as_sudoer_no_password
     ubu_snap_disable_dir_at_home
     ubu_pro_disable
+    ubu_keyring_disable_password
 }
 
 function my_software() {
@@ -92,6 +93,18 @@ function ubu_pro_disable() {
 
 function ubu_snap_disable_dir_at_home() {
     sudo snap set system experimental.hidden-snap-folder=true
+}
+
+function ubu_keyring_disable_password() {
+    local keyring_dir="$HOME/.local/share/keyrings"
+    if [[ -f "$keyring_dir/Default_keyring.keyring" ]]; then
+        return 0
+    fi
+    mkdir -p "$keyring_dir"
+    chmod 700 "$keyring_dir"
+    printf 'Default_keyring\n' > "$keyring_dir/default"
+    printf '[keyring]\ndisplay-name=Default keyring\nctime=0\nmtime=0\nlock-on-idle=false\nlock-after=false\n' > "$keyring_dir/Default_keyring.keyring"
+    chmod 600 "$keyring_dir/default" "$keyring_dir/Default_keyring.keyring"
 }
 
 function ubu_increase_swap() {
