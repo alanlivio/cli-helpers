@@ -9,8 +9,8 @@ function ps_func_show($name) { Get-Content Function:\$name }
 
 $is_windows = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
 if ($is_windows) {
-    Import-Module (Join-Path $helpers_dir 'os\win.psm1')
-    Import-Module (Join-Path $helpers_dir 'os\win_code.psm1')
+    Import-Module (Join-Path $helpers_dir 'os\win.psm1') -Force
+    Import-Module (Join-Path $helpers_dir 'os\win_code.psm1') -Force
 }
 
 # -- load <program>.ps1 files --
@@ -20,7 +20,7 @@ $programs_dir = Join-Path $HELPERS_DIR 'programs'
 Get-ChildItem -Path "$programs_dir\*.psm1" | ForEach-Object {
     $program = $_.BaseName
     if (Get-Command $program -ErrorAction SilentlyContinue) {
-        Import-Module $_.FullName
+        Import-Module $_.FullName -Force
     }
 }
 
