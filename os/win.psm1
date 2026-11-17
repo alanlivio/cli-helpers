@@ -160,19 +160,15 @@ function wsl_check_status {
     }
 }
 
-function wsl_move_vhdx {
+function wsl_move_default_vhdx {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true, Position = 0)]
-        [string]$target_dir,
-        [Parameter(Position = 1)]
-        [string]$distro = ""
+        [string]$target_dir
     )
 
-    if (-not $distro) {
-        $distro = wsl_get_default
-        if (-not $distro) { $distro = "Ubuntu" }
-    }
+    $distro = wsl_get_default
+    if (-not $distro) { $distro = "Ubuntu" }
 
     $distro_reg = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss\*" -ErrorAction SilentlyContinue |
     Where-Object { $_.DistributionName -eq $distro } |
@@ -193,10 +189,6 @@ function wsl_move_vhdx {
         }
     }
 
-    if (-not (Test-Path -LiteralPath $target_dir)) {
-        New-Item -ItemType Directory -Path $target_dir -Force | Out-Null
-    }
-
     $current_base = ($distro_reg.BasePath -replace '^\\\\\?\\', '')
     if ($current_base -match '^[A-Za-z]:$') {
         $current_base = "$current_base\"
@@ -204,24 +196,29 @@ function wsl_move_vhdx {
         $current_base = $current_base.TrimEnd('\')
     }
 
-    if ($current_base -ieq $target_dir) {
-        Set-ItemProperty -Path $distro_reg.PSPath -Name "BasePath" -Value $target_dir -ErrorAction SilentlyContinue
-        log_msg "WSL distribution '$distro' is already located at $target_dir"
-        return
-    }
-
     $vhd_name = if ($distro_reg.VhdFileName) { $distro_reg.VhdFileName } else { "ext4.vhdx" }
     $src_vhdx = [System.IO.Path]::Combine($current_base, $vhd_name)
     $dst_vhdx = [System.IO.Path]::Combine($target_dir, $vhd_name)
+
+    if ($current_base -ieq $target_dir) {
+        Set-ItemProperty -Path $distro_reg.PSPath -Name "BasePath" -Value $target_dir -ErrorAction SilentlyContinue
+        log_msg "Default WSL ('$distro') VHDX $src_vhdx is already located at $target_dir"
+        return
+    }
+
     if (-not (Test-Path -LiteralPath $src_vhdx)) {
         log_error "VHDX file not found at $src_vhdx"
         return
     }
 
+    if (-not (Test-Path -LiteralPath $target_dir)) {
+        New-Item -ItemType Directory -Path $target_dir -Force | Out-Null
+    }
+
+    log_msg "Moving default WSL ('$distro') VHDX: $src_vhdx -> $dst_vhdx"
     log_msg "Shutting down WSL..."
     wsl.exe --shutdown
 
-    log_msg "Moving '$distro' VHDX from $src_vhdx to $dst_vhdx..."
     $manage_target = $target_dir.TrimEnd('\')
     wsl.exe --manage $distro --move "$manage_target"
 
