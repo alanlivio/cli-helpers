@@ -915,20 +915,47 @@ function win_assert_vcvars() {
     return $vcvars
 }
 
+function _win_modern_context_menu_write_manifest {
+    param(
+        [Parameter(Mandatory = $true)][string]$shellExtDir,
+        [Parameter(Mandatory = $true)][string]$pkgDir
+    )
+    $verbFiles = Get-ChildItem -LiteralPath $pkgDir -Filter "*.json" -File -ErrorAction SilentlyContinue | Sort-Object Name
+    if (-not $verbFiles) {
+        return $false
+    }
+
+    $comClasses = @()
+    $verbsXml = @()
+    foreach ($vf in $verbFiles) {
+        $v = Get-Content -LiteralPath $vf.FullName -Raw | ConvertFrom-Json
+        $comClasses += "              <com:Class Id=`"$($v.clsid_str)`" Path=`"$($v.dll_name)`" ThreadingModel=`"STA`" />"
+        $verbsXml += "              <desktop5:Verb Id=`"$($v.verb_id)`" Clsid=`"$($v.clsid_str)`" />"
+    }
+
+    $manifestTmpl = Get-Content ([System.IO.Path]::Combine($shellExtDir, "AppxManifest.xml.j2")) -Raw
+    $manifestTmpl = $manifestTmpl.Replace('{{ com_classes }}', ($comClasses -join "`r`n"))
+    $manifestTmpl = $manifestTmpl.Replace('{{ directory_verbs }}', ($verbsXml -join "`r`n"))
+    $manifestTmpl = $manifestTmpl.Replace('{{ background_verbs }}', ($verbsXml -join "`r`n"))
+
+    Set-Content -Path ([System.IO.Path]::Combine($pkgDir, "AppxManifest.xml")) -Value $manifestTmpl -Encoding UTF8
+    return $true
+}
+
 function win_modern_context_menu_add {
     param(
         [Parameter(Mandatory = $true)][string]$name,
         [Parameter(Mandatory = $true)][string]$title,
         [Parameter(Mandatory = $true)][string]$ps_function,
-        [string]$icon = "powershell.exe,0",
-        [switch]$force
+        [string]$icon = "powershell.exe,0"
     )
     $safeIdent = ($name -replace '[^a-zA-Z0-9]', '')
-    $packageName = "CliHelpers.$safeIdent"
-    $existing = Get-AppxPackage $packageName -ErrorAction SilentlyContinue
-    if ($existing -and -not $force) {
-        return
-    }
+    $packageName = "alanlivio.cli-helpers"
+    $shellExtDir = [System.IO.Path]::Combine($PSScriptRoot, "ShellExt")
+    $pkgDir = [System.IO.Path]::Combine($env:LOCALAPPDATA, "CliHelpers\ShellExt")
+    $verbJsonPath = [System.IO.Path]::Combine($pkgDir, "$safeIdent.json")
+    $dllName = "$safeIdent.dll"
+    $dllPath = [System.IO.Path]::Combine($pkgDir, $dllName)
 
     $devMode = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" -Name "AllowDevelopmentWithoutDevLicense" -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense
     if ($devMode -ne 1) {
@@ -938,13 +965,12 @@ function win_modern_context_menu_add {
         return
     }
 
-    $shellExtDir = Join-Path $PSScriptRoot "ShellExt"
-    $pkgDir = Join-Path $env:LOCALAPPDATA "CliHelpers\pkg\$name"
     if (-not (Test-Path $pkgDir)) {
         New-Item -ItemType Directory -Path $pkgDir -Force | Out-Null
     }
 
-    $helpersInit = (Resolve-Path (Join-Path (Split-Path -Parent $PSScriptRoot) "init.ps1")).ProviderPath
+    $helpersInit = [System.IO.Path]::Combine((Split-Path -Parent $PSScriptRoot), "init.ps1")
+    $helpersInit = (Resolve-Path -LiteralPath $helpersInit).ProviderPath
     $helpersInitEscaped = $helpersInit.Replace('\', '\\')
 
     $md5Bytes = [System.Security.Cryptography.MD5]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes("clihelpers.$name"))
@@ -959,67 +985,86 @@ function win_modern_context_menu_add {
 
     $exeCandidate = ($icon -split ',')[0]
     $fullExe = if (Test-Path $exeCandidate) { (Resolve-Path $exeCandidate).ProviderPath } else { (Get-Command $exeCandidate -ErrorAction SilentlyContinue).Source }
+    if (-not $fullExe) {
+        $fullExe = (Get-Command "powershell.exe" -ErrorAction SilentlyContinue).Source
+    }
     $iconIndex = if ($icon -match ',(-?\d+)$') { $matches[1] } else { '0' }
     $iconTarget = if ($fullExe) { "$fullExe,$iconIndex" } else { $icon }
     $iconEscaped = $iconTarget.Replace('\', '\\')
 
-    $safeIdent = ($name -replace '[^a-zA-Z0-9]', '')
+    $verbId = "${safeIdent}Command"
     $map = @{
         '{{ clsid_str }}'    = $clsid_str
         '{{ clsid_struct }}' = $clsid_struct
         '{{ title }}'        = $title
         '{{ icon }}'         = $iconEscaped
         '{{ ps_function }}'  = $ps_function
-        '{{ package_name }}' = "CliHelpers.$safeIdent"
-        '{{ verb_id }}'      = "${safeIdent}Command"
-        '{{ dll_name }}'     = "ShellExt.dll"
+        '{{ verb_id }}'      = $verbId
+        '{{ dll_name }}'     = $dllName
         '{{ helpers_init }}' = $helpersInitEscaped
     }
 
-    $cppTmpl = Get-Content (Join-Path $shellExtDir "CliHelpersShellExt.cpp.j2") -Raw
-    $manifestTmpl = Get-Content (Join-Path $shellExtDir "AppxManifest.xml.j2") -Raw
+    $cppTmpl = Get-Content ([System.IO.Path]::Combine($shellExtDir, "CliHelpersShellExt.cpp.j2")) -Raw
     foreach ($k in $map.Keys) {
         $cppTmpl = $cppTmpl.Replace($k, $map[$k])
-        $manifestTmpl = $manifestTmpl.Replace($k, $map[$k])
     }
 
-    Set-Content -Path (Join-Path $pkgDir "ShellExt.cpp") -Value $cppTmpl -Encoding UTF8
-    Set-Content -Path (Join-Path $pkgDir "AppxManifest.xml") -Value $manifestTmpl -Encoding UTF8
-    Copy-Item (Join-Path $shellExtDir "CliHelpersShellExt.def") (Join-Path $pkgDir "ShellExt.def") -Force
-    
-    Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
-    $pkgLogo = Join-Path $pkgDir "logo.png"
-    if ($fullExe -and (Test-Path $fullExe)) {
-        try {
-            $extractedIcon = [System.Drawing.Icon]::ExtractAssociatedIcon($fullExe)
-            $bmp = $extractedIcon.ToBitmap()
-            $resized = New-Object System.Drawing.Bitmap 44, 44
-            $g = [System.Drawing.Graphics]::FromImage($resized)
-            $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-            $g.DrawImage($bmp, 0, 0, 44, 44)
-            $g.Dispose()
-            $resized.Save($pkgLogo, [System.Drawing.Imaging.ImageFormat]::Png)
-            $resized.Dispose()
-            $bmp.Dispose()
-            $extractedIcon.Dispose()
-        } catch {}
+    $cppPath = [System.IO.Path]::Combine($pkgDir, "$safeIdent.cpp")
+    $defPath = [System.IO.Path]::Combine($pkgDir, "ShellExt.def")
+    Set-Content -Path $cppPath -Value $cppTmpl -Encoding UTF8
+    Copy-Item ([System.IO.Path]::Combine($shellExtDir, "CliHelpersShellExt.def")) $defPath -Force
+
+    $pkgLogo = [System.IO.Path]::Combine($pkgDir, "logo.png")
+    $repoIcon = [System.IO.Path]::Combine((Split-Path -Parent $PSScriptRoot), "cli_helpers\resources\icon.png")
+    if ((Test-Path $repoIcon) -and -not (Test-Path $pkgLogo)) {
+        Copy-Item $repoIcon $pkgLogo -Force
     }
     if (-not (Test-Path $pkgLogo)) {
-        $bmp = New-Object System.Drawing.Bitmap(44, 44)
-        $bmp.Save($pkgLogo, [System.Drawing.Imaging.ImageFormat]::Png)
-        $bmp.Dispose()
+        Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
+        if ($fullExe -and (Test-Path $fullExe)) {
+            try {
+                $extractedIcon = [System.Drawing.Icon]::ExtractAssociatedIcon($fullExe)
+                $bmp = $extractedIcon.ToBitmap()
+                $resized = New-Object System.Drawing.Bitmap 44, 44
+                $g = [System.Drawing.Graphics]::FromImage($resized)
+                $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+                $g.DrawImage($bmp, 0, 0, 44, 44)
+                $g.Dispose()
+                $resized.Save($pkgLogo, [System.Drawing.Imaging.ImageFormat]::Png)
+                $resized.Dispose()
+                $bmp.Dispose()
+                $extractedIcon.Dispose()
+            } catch {}
+        }
+        if (-not (Test-Path $pkgLogo)) {
+            $bmp = New-Object System.Drawing.Bitmap(44, 44)
+            $bmp.Save($pkgLogo, [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+        }
     }
 
-    if (Test-Path (Join-Path $shellExtDir "launcher.exe")) {
-        Copy-Item (Join-Path $shellExtDir "launcher.exe") (Join-Path $pkgDir "launcher.exe") -Force
+    $allExisting = @()
+    $allExisting += @(Get-AppxPackage "CliHelpers.*" -ErrorAction SilentlyContinue)
+    $allExisting += @(Get-AppxPackage $packageName -ErrorAction SilentlyContinue)
+    if ($allExisting.Count -gt 0) {
+        $prev = $ProgressPreference
+        $ProgressPreference = 'SilentlyContinue'
+        explorer_restart
+        Start-Sleep -Milliseconds 500
+        foreach ($pkg in $allExisting) {
+            Remove-AppxPackage -Package $pkg.PackageFullName -ErrorAction SilentlyContinue
+        }
+        $ProgressPreference = $prev
+    }
+
+    $legacyPkgRoot = [System.IO.Path]::Combine($env:LOCALAPPDATA, "CliHelpers\pkg")
+    if (Test-Path $legacyPkgRoot) {
+        Remove-Item $legacyPkgRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     $vcvars = win_assert_vcvars
-    $cppPath = Join-Path $pkgDir "ShellExt.cpp"
-    $dllPath = Join-Path $pkgDir "ShellExt.dll"
-    $defPath = Join-Path $pkgDir "ShellExt.def"
-    $launcherC = Join-Path $shellExtDir "launcher.c"
-    $launcherExe = Join-Path $pkgDir "launcher.exe"
+    $launcherC = [System.IO.Path]::Combine($shellExtDir, "launcher.c")
+    $launcherExe = [System.IO.Path]::Combine($pkgDir, "launcher.exe")
 
     if ((Test-Path $launcherC) -and -not (Test-Path $launcherExe)) {
         $launcherOutput = cmd /c "`"$vcvars`" && cd /d `"$pkgDir`" && cl /nologo /O2 `"$launcherC`" /Fe:`"$launcherExe`" /Fo:`"$pkgDir\\`" /link /SUBSYSTEM:WINDOWS" 2>&1
@@ -1037,23 +1082,26 @@ function win_modern_context_menu_add {
         return
     }
 
-    Remove-Item (Join-Path $pkgDir "*.obj"), (Join-Path $pkgDir "*.lib"), (Join-Path $pkgDir "*.exp") -Force -ErrorAction SilentlyContinue
+    Remove-Item ([System.IO.Path]::Combine($pkgDir, "*.obj")), ([System.IO.Path]::Combine($pkgDir, "*.lib")), ([System.IO.Path]::Combine($pkgDir, "*.exp")), $cppPath -Force -ErrorAction SilentlyContinue
 
-    $existing = Get-AppxPackage $packageName -ErrorAction SilentlyContinue
-    if ($existing) {
-        $prev = $ProgressPreference
-        $ProgressPreference = 'SilentlyContinue'
-        explorer_restart
-        Start-Sleep -Milliseconds 500
-        Remove-AppxPackage -Package $existing.PackageFullName
-        $ProgressPreference = $prev
+    $verbMeta = @{
+        name        = $name
+        safe_ident  = $safeIdent
+        title       = $title
+        clsid_str   = $clsid_str
+        verb_id     = $verbId
+        dll_name    = $dllName
+        ps_function = $ps_function
     }
+    $verbMeta | ConvertTo-Json | Set-Content -Path $verbJsonPath -Encoding UTF8
 
-    $manifestPath = Join-Path $pkgDir "AppxManifest.xml"
+    [void](_win_modern_context_menu_write_manifest -shellExtDir $shellExtDir -pkgDir $pkgDir)
+
+    $manifestPath = [System.IO.Path]::Combine($pkgDir, "AppxManifest.xml")
     $prev = $ProgressPreference
     $ProgressPreference = 'SilentlyContinue'
     try {
-        Add-AppxPackage -Path (Resolve-Path $manifestPath).ProviderPath -Register -ErrorAction Stop
+        Add-AppxPackage -Path (Resolve-Path -LiteralPath $manifestPath).ProviderPath -Register -ErrorAction Stop
     } catch {
         log_error "Failed to register Appx package: $_"
         log_error "Ensure Developer Mode is enabled: reg add `"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock`" /t REG_DWORD /f /v `"AllowDevelopmentWithoutDevLicense`" /d `"1`""
@@ -1069,21 +1117,43 @@ function win_modern_context_menu_remove {
         [Parameter(Mandatory = $true)][string]$name
     )
     $safeIdent = ($name -replace '[^a-zA-Z0-9]', '')
-    $packageName = "CliHelpers.$safeIdent"
-    $pkg = Get-AppxPackage $packageName -ErrorAction SilentlyContinue
-    if ($pkg) {
+    $packageName = "alanlivio.cli-helpers"
+    $shellExtDir = [System.IO.Path]::Combine($PSScriptRoot, "ShellExt")
+    $pkgDir = [System.IO.Path]::Combine($env:LOCALAPPDATA, "CliHelpers\ShellExt")
+
+    $pkgsToRemove = @()
+    $pkgsToRemove += @(Get-AppxPackage "CliHelpers.*" -ErrorAction SilentlyContinue)
+    $pkgsToRemove += @(Get-AppxPackage $packageName -ErrorAction SilentlyContinue)
+
+    if ($pkgsToRemove.Count -gt 0) {
         $prev = $ProgressPreference
         $ProgressPreference = 'SilentlyContinue'
         explorer_restart
         Start-Sleep -Milliseconds 500
-        Remove-AppxPackage -Package $pkg.PackageFullName
+        foreach ($p in $pkgsToRemove) {
+            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
+        }
         $ProgressPreference = $prev
-        explorer_restart
     }
-    $pkgDir = Join-Path $env:LOCALAPPDATA "CliHelpers\pkg\$name"
+
+    $legacyDir = [System.IO.Path]::Combine($env:LOCALAPPDATA, "CliHelpers\pkg\$name")
+    if (Test-Path $legacyDir) {
+        Remove-Item $legacyDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
     if (Test-Path $pkgDir) {
-        Remove-Item $pkgDir -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item ([System.IO.Path]::Combine($pkgDir, "$safeIdent.json")), ([System.IO.Path]::Combine($pkgDir, "$safeIdent.dll")) -Force -ErrorAction SilentlyContinue
+        if (_win_modern_context_menu_write_manifest -shellExtDir $shellExtDir -pkgDir $pkgDir) {
+            $manifestPath = [System.IO.Path]::Combine($pkgDir, "AppxManifest.xml")
+            $prev = $ProgressPreference
+            $ProgressPreference = 'SilentlyContinue'
+            Add-AppxPackage -Path (Resolve-Path -LiteralPath $manifestPath).ProviderPath -Register -ErrorAction SilentlyContinue
+            $ProgressPreference = $prev
+        } else {
+            Remove-Item $pkgDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
+    explorer_restart
 }
 
 # -- my_declutter --

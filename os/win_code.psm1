@@ -111,11 +111,10 @@ function code_win_modern_context_menu_add {
     param(
         [string]$name = "code_wsl_auto",
         [string]$title = "Open with Code (Auto WSL)",
-        [string]$ps_function = "code_wsl_auto",
-        [string]$icon = "powershell.exe,0",
-        [switch]$force
+        [string]$ps_function = "code_wsl_auto"
     )
-    win_modern_context_menu_add -name $name -title $title -ps_function $ps_function -icon $icon -force:$force
+    $icon = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe,0"
+    win_modern_context_menu_add -name $name -title $title -ps_function $ps_function -icon $icon
 }
 
 function code_win_modern_context_menu_remove {
@@ -187,19 +186,10 @@ function antigravity_ide_win_modern_context_menu_add {
     param(
         [string]$name = "antigravity_ide_open_wsl_auto",
         [string]$title = "Open with Antigravity IDE (Auto WSL)",
-        [string]$ps_function = "antigravity_ide_open_wsl_auto",
-        [string]$icon,
-        [switch]$force
+        [string]$ps_function = "antigravity_ide_open_wsl_auto"
     )
-    if (-not $icon) {
-        $appExe = "$env:LOCALAPPDATA\Programs\Antigravity IDE\Antigravity IDE.exe"
-        if (Test-Path $appExe) {
-            $icon = "$appExe,0"
-        } else {
-            $icon = "powershell.exe,0"
-        }
-    }
-    win_modern_context_menu_add -name $name -title $title -ps_function $ps_function -icon $icon -force:$force
+    $icon = "$env:LOCALAPPDATA\Programs\Antigravity IDE\Antigravity IDE.exe,0"
+    win_modern_context_menu_add -name $name -title $title -ps_function $ps_function -icon $icon
 }
 
 function antigravity_ide_win_modern_context_menu_remove {
