@@ -1312,6 +1312,7 @@ function win_declutter_taskbar_startmenu() {
     
     # startmenu
     Set-ItemProperty -Path $start_key -Name "ShowRecentList" -Value 0 -Type DWord
+    Set-ItemProperty -Path $start_key -Name "AllAppsViewMode" -Value 2 -Type DWord
     Set-ItemProperty -Path $advanced_key -Name "Start_TrackProgs" -Value 0 -Type DWord
     Set-ItemProperty -Path $advanced_key -Name "Start_TrackDocs" -Value 0 -Type DWord
     Set-ItemProperty -Path $advanced_key -Name "Start_IrisRecommendations" -Value 0 -Type DWord
