@@ -306,7 +306,7 @@ class MainWindow(fluentqt.Window):
 
         app = QApplication.instance()
         self._focus_connected = False
-        if app:
+        if isinstance(app, QApplication):
             app.aboutToQuit.connect(self.kill_workers)
             app.focusChanged.connect(self._on_focus_changed)
             self._focus_connected = True
@@ -1187,7 +1187,7 @@ class MainWindow(fluentqt.Window):
 
     def closeEvent(self, a0):
         app = QApplication.instance()
-        if app and getattr(self, "_focus_connected", False):
+        if isinstance(app, QApplication) and getattr(self, "_focus_connected", False):
             self._focus_connected = False
             try:
                 app.focusChanged.disconnect(self._on_focus_changed)
@@ -1200,8 +1200,7 @@ class MainWindow(fluentqt.Window):
         super().resizeEvent(e)
         if hasattr(self, "title_bar") and hasattr(self.title_bar, "raise_"):
             self.title_bar.raise_()
-        app = QApplication.instance()
-        focused = app.focusWidget() if app else None
+        focused = QApplication.focusWidget() if QApplication.instance() else None
         if focused:
             self._on_focus_changed(None, focused)
 
