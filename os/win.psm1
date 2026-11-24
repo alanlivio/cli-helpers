@@ -6,7 +6,7 @@ function my_declutter() {
 }
 
 function my_software() {
-    win_install_python
+    win_install_python_silent
     winget_upgrade_user
 }
 
@@ -531,27 +531,7 @@ function win_install_obs() {
     win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\OBS\bin\64bit\obs64.exe" OBS
 }
 
-function win_install_gh() {
-    if (Test-Path "$env:LOCALAPPDATA\Programs\gh\bin\gh.exe") { return; }
-    $url = github_latest_release_url "cli/cli" "*windows_amd64.zip"
-    if (-not $url) { return }
-    zip_download_extract $url "$env:LOCALAPPDATA\Programs\gh"
-    win_path_add "$env:LOCALAPPDATA\Programs\gh\bin"
-}
-
-function win_install_node() {
-    if (Test-Path "$env:LOCALAPPDATA\Programs\nodejs") { return; }
-    $node_index_url = "https://nodejs.org/dist/index.json"
-    $node_index = Invoke-RestMethod -Uri $node_index_url
-    $latest_lts = $node_index | Where-Object { $_.lts } | Select-Object -First 1
-    $version = $latest_lts.version.TrimStart("v")  # e.g. "20.12.2"
-    $arch = "x64"
-    $url = "https://nodejs.org/dist/v$version/node-v$version-win-$arch.zip"
-    zip_download_extract $url "$env:LOCALAPPDATA\Programs\nodejs"
-    win_path_add "$env:LOCALAPPDATA\Programs\nodejs\node-v$version-win-$arch\"
-}
-
-function win_install_python() {
+function win_install_python_silent() {
     winget_install Python.Python.3.13 --override "/passive PrependPath=1 Include_doc=0 Include_tcltk=0 Include_test=0 Include_pip=1 Include_launcher=0"
 }
 
