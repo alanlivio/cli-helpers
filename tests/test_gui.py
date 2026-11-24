@@ -365,6 +365,31 @@ class TestGui(unittest.TestCase):
         self.assertIsNotNone(scroll_content)
         self.assertGreaterEqual(scroll_content.height(), 400)
 
+    def test_update_helpers_and_dotfiles_use_git_pull_ff(self):
+        called = []
+        with patch.object(
+            self.window,
+            "run_worker_command",
+            side_effect=lambda *args, **kwargs: called.append(args),
+        ), patch.object(self.window, "get_git_executable", return_value="git"):
+            with patch.object(
+                self.window, "get_cli_helpers_path", return_value="/tmp/cli-helpers"
+            ):
+                self.window.install_or_update_helpers()
+            with patch.object(
+                self.window, "get_dotfiles_path", return_value="/tmp/dotfiles"
+            ):
+                self.window.clone_or_update_dotfiles()
+
+        self.assertEqual(
+            called[0],
+            ("git", ["-C", "/tmp/cli-helpers", "pull", "--ff", "origin", "main"]),
+        )
+        self.assertEqual(
+            called[1],
+            ("git", ["-C", "/tmp/dotfiles", "pull", "--ff", "origin", "main"]),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

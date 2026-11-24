@@ -1071,7 +1071,7 @@ class MainWindow(fluentqt.Window):
             self.add_output(f"Updating cli-helpers at {helpers_path}...")
             self.run_worker_command(
                 git_exe,
-                ["-C", helpers_path, "pull", "origin", "main"],
+                ["-C", helpers_path, "pull", "--ff", "origin", "main"],
                 status_msg="Updating cli-helpers...",
                 on_success_msg="cli-helpers updated.",
             )
@@ -1109,7 +1109,7 @@ class MainWindow(fluentqt.Window):
             self.add_output(f"Updating dotfiles at {dotfiles_path}...")
             self.run_worker_command(
                 git_exe,
-                ["-C", dotfiles_path, "pull", "origin", "main"],
+                ["-C", dotfiles_path, "pull", "--ff", "origin", "main"],
                 status_msg="Updating dotfiles...",
                 on_success_msg="dotfiles updated.",
             )
