@@ -284,12 +284,16 @@ def _qt_message_handler(mode, context, message):
 qInstallMessageHandler(_qt_message_handler)
 
 
+from .version import __version__
 from .workers import (
     HelperWorker,
     HelperDiscoveryWorker,
     StatusCheckWorker,
+    ExeUpdateWorker,
     build_helper_command,
     get_git_executable,
+    cleanup_old_exe,
+    _default_local_exe_path,
 )
 from .install_software import (
     INSTALL_GIT,
@@ -315,6 +319,8 @@ class MainWindow(fluentqt.Window):
         self._status_worker = None
         self._helper_worker = None
         self._task_worker = None
+        self._exe_update_worker = None
+        self._exe_download_url = ""
         self._cached_ps_exe = None
 
         setTheme(Theme.DARK)
@@ -497,6 +503,20 @@ class MainWindow(fluentqt.Window):
         setup_header.addStretch()
         setup_header.addWidget(self.btn_refresh_all)
         setup_layout.addLayout(setup_header)
+
+        app_row = QHBoxLayout()
+        self.app_label = BodyLabel("CLI Helpers:")
+        self.app_label.setFixedWidth(135)
+        self.app_badge = InfoBadge.info(f"v{__version__.lstrip('v')}")
+        self.btn_update_exe = PushButton("Updated")
+        self.btn_update_exe.setFixedWidth(125)
+        self.btn_update_exe.setEnabled(False)
+        self.btn_update_exe.clicked.connect(self.update_exe)
+        app_row.addWidget(self.app_label)
+        app_row.addWidget(self.app_badge)
+        app_row.addStretch()
+        app_row.addWidget(self.btn_update_exe)
+        setup_layout.addLayout(app_row)
 
         winget_row = QHBoxLayout()
         self.winget_label = BodyLabel("WinGet:")
@@ -706,6 +726,7 @@ class MainWindow(fluentqt.Window):
             self.progress_bar.stop()
 
         self.btn_refresh_all.setEnabled(not busy)
+        self.btn_update_exe.setEnabled(not busy and bool(self._exe_download_url))
         self.btn_reload_tasks.setEnabled(not busy)
         self.btn_install_winget.setEnabled(
             not busy and self.winget_badge.text() == "Not installed"
@@ -857,10 +878,12 @@ class MainWindow(fluentqt.Window):
             if info.get("winget_version"):
                 self.winget_badge.setToolTip(info["winget_version"])
             self.winget_badge.setLevel(InfoLevel.SUCCESS)
+            self.btn_install_winget.setText("Installed")
             self.btn_install_winget.setEnabled(False)
         else:
             self.winget_badge.setText("Not installed")
             self.winget_badge.setLevel(InfoLevel.WARNING)
+            self.btn_install_winget.setText("Install WinGet")
             self.btn_install_winget.setEnabled(True)
 
         if info["git_installed"]:
@@ -923,6 +946,25 @@ class MainWindow(fluentqt.Window):
         if info.get("dotfiles_path"):
             self.dotfiles_label.setToolTip(f"Local path: {info['dotfiles_path']}")
             self.dotfiles_badge.setToolTip(f"Local path: {info['dotfiles_path']}")
+
+        cur_ver = info.get("exe_version") or f"v{__version__.lstrip('v')}"
+        if info.get("exe_update_available") and info.get("exe_download_url"):
+            latest_ver = info.get("exe_latest_version", "")
+            self._exe_download_url = info["exe_download_url"]
+            if latest_ver and latest_ver.lstrip("v") != cur_ver.lstrip("v"):
+                badge_text = f"{cur_ver} -> {latest_ver}"
+            else:
+                badge_text = f"{cur_ver} (new build)"
+            self.app_badge.setText(badge_text)
+            self.app_badge.setLevel(InfoLevel.WARNING)
+            self.btn_update_exe.setText("Needs update")
+            self.btn_update_exe.setEnabled(True)
+        else:
+            self._exe_download_url = ""
+            self.app_badge.setText(cur_ver)
+            self.app_badge.setLevel(InfoLevel.SUCCESS)
+            self.btn_update_exe.setText("Updated")
+            self.btn_update_exe.setEnabled(False)
 
     def initialize_tasks(self):
         self.set_busy(True, "Loading profile tasks...")
@@ -993,6 +1035,54 @@ class MainWindow(fluentqt.Window):
 
         self._active_worker.finished.connect(on_finished)
         self._active_worker.start()
+
+    def update_exe(self):
+        if not self._exe_download_url:
+            return
+        is_frozen = getattr(sys, "frozen", False)
+        target_exe = (
+            sys.executable
+            if is_frozen
+            else _default_local_exe_path(self.get_cli_helpers_path())
+        )
+        if not target_exe:
+            self.add_output(
+                "Self-update replaces standalone cli-helpers.exe (currently running from source)."
+            )
+            return
+        self.set_busy(True, "Updating executable...")
+        self._exe_update_worker = ExeUpdateWorker(
+            self._exe_download_url, exe_path=target_exe
+        )
+        self._exe_update_worker.output_line.connect(self.add_output)
+
+        def on_exe_updated(success, result_str):
+            if success:
+                if is_frozen:
+                    self.set_busy(False, "Restarting...")
+                    env = os.environ.copy()
+                    env.pop("_MEIPASS2", None)
+                    creation_flags = (
+                        subprocess.DETACHED_PROCESS
+                        if sys.platform == "win32"
+                        and hasattr(subprocess, "DETACHED_PROCESS")
+                        else 0
+                    )
+                    subprocess.Popen(
+                        [result_str],
+                        env=env,
+                        close_fds=True,
+                        creationflags=creation_flags,
+                    )
+                    QApplication.quit()
+                else:
+                    self.set_busy(False, "Executable updated.")
+                    self.refresh_all()
+            else:
+                self.set_busy(False, "Update failed.")
+
+        self._exe_update_worker.finished.connect(on_exe_updated)
+        self._exe_update_worker.start()
 
     def install_winget(self):
         if sys.platform != "win32":
@@ -1177,6 +1267,7 @@ class MainWindow(fluentqt.Window):
             self._status_worker,
             self._helper_worker,
             self._task_worker,
+            self._exe_update_worker,
         ]:
             if worker and worker.isRunning():
                 if hasattr(worker, "kill"):
@@ -1206,6 +1297,7 @@ class MainWindow(fluentqt.Window):
 
 
 def main():
+    cleanup_old_exe()
     if sys.platform == "win32":
         try:
             import ctypes

@@ -113,6 +113,7 @@ class TestGui(unittest.TestCase):
         self.window._on_status_ready(mock_info)
         self.assertEqual(self.window.winget_badge.text(), "Installed")
         self.assertEqual(self.window.winget_badge.level, InfoLevel.SUCCESS)
+        self.assertEqual(self.window.btn_install_winget.text(), "Installed")
         self.assertFalse(self.window.btn_install_winget.isEnabled())
         self.assertEqual(self.window.git_badge.text(), "Installed")
         self.assertEqual(self.window.helpers_badge.text(), "Installed")
@@ -157,6 +158,7 @@ class TestGui(unittest.TestCase):
         self.window._on_status_ready(mock_info)
         self.assertEqual(self.window.winget_badge.text(), "Not installed")
         self.assertEqual(self.window.winget_badge.level, InfoLevel.WARNING)
+        self.assertEqual(self.window.btn_install_winget.text(), "Install WinGet")
         self.assertTrue(self.window.btn_install_winget.isEnabled())
         self.assertEqual(self.window.helpers_badge.text(), "Not installed")
         self.assertEqual(self.window.helpers_badge.level, InfoLevel.ERROR)
@@ -389,6 +391,145 @@ class TestGui(unittest.TestCase):
             called[1],
             ("git", ["-C", "/tmp/dotfiles", "pull", "--ff", "origin", "main"]),
         )
+
+    def test_exe_self_update_check_and_swap(self):
+        import hashlib
+        import io
+        import json
+        import tempfile
+        from cli_helpers.workers import (
+            check_exe_update,
+            apply_exe_update,
+            cleanup_old_exe,
+        )
+
+        payload = json.dumps(
+            {
+                "tag_name": "v9.9.9",
+                "assets": [
+                    {
+                        "name": "cli-helpers.exe",
+                        "browser_download_url": "https://example.com/cli-helpers.exe",
+                    }
+                ],
+            }
+        ).encode("utf-8")
+
+        class DummyResp(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                self.close()
+
+        with patch(
+            "urllib.request.urlopen", side_effect=lambda *a, **kw: DummyResp(payload)
+        ):
+            has_upd, ver, url = check_exe_update(current_version="0.1.0")
+            self.assertTrue(has_upd)
+            self.assertEqual(ver, "v9.9.9")
+            self.assertEqual(url, "https://example.com/cli-helpers.exe")
+
+            no_upd, _, _ = check_exe_update(current_version="9.9.9")
+            self.assertFalse(no_upd)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_exe = os.path.join(tmpdir, "cli-helpers.exe")
+            with open(fake_exe, "wb") as f:
+                f.write(b"MZoldbinary")
+
+            old_hash = hashlib.sha256(b"MZoldbinary").hexdigest()
+            new_hash = hashlib.sha256(b"MZnewbinary").hexdigest()
+
+            same_ver_same_hash = json.dumps(
+                {
+                    "tag_name": "v0.1.0",
+                    "assets": [
+                        {
+                            "name": "cli-helpers.exe",
+                            "digest": f"sha256:{old_hash}",
+                            "browser_download_url": "https://example.com/cli-helpers.exe",
+                        }
+                    ],
+                }
+            ).encode("utf-8")
+            with patch(
+                "urllib.request.urlopen",
+                side_effect=lambda *a, **kw: DummyResp(same_ver_same_hash),
+            ):
+                self.assertFalse(
+                    check_exe_update(current_version="0.1.0", exe_path=fake_exe)[0]
+                )
+
+            same_ver_diff_hash = json.dumps(
+                {
+                    "tag_name": "v0.1.0",
+                    "assets": [
+                        {
+                            "name": "cli-helpers.exe",
+                            "digest": f"sha256:{new_hash}",
+                            "browser_download_url": "https://example.com/cli-helpers.exe",
+                        }
+                    ],
+                }
+            ).encode("utf-8")
+            with patch(
+                "urllib.request.urlopen",
+                side_effect=lambda *a, **kw: DummyResp(same_ver_diff_hash),
+            ):
+                has_upd, ver, url = check_exe_update(
+                    current_version="0.1.0", exe_path=fake_exe
+                )
+                self.assertTrue(has_upd)
+                self.assertEqual(ver, "v0.1.0")
+                self.assertEqual(url, "https://example.com/cli-helpers.exe")
+
+            with patch(
+                "urllib.request.urlopen", return_value=DummyResp(b"MZnewbinary")
+            ):
+                updated = apply_exe_update(
+                    "https://example.com/cli-helpers.exe", exe_path=fake_exe
+                )
+                self.assertEqual(updated, fake_exe)
+                with open(fake_exe, "rb") as f:
+                    self.assertEqual(f.read(), b"MZnewbinary")
+                self.assertTrue(os.path.exists(f"{fake_exe}.old"))
+
+            cleanup_old_exe(fake_exe)
+            self.assertFalse(os.path.exists(f"{fake_exe}.old"))
+
+        self.window._on_status_ready(
+            {
+                "git_installed": True,
+                "helpers_installed": True,
+                "dotfiles_installed": True,
+                "dotfiles_user": "u",
+                "exe_version": "v0.1.0",
+                "exe_update_available": True,
+                "exe_latest_version": "v0.1.0",
+                "exe_download_url": "https://example.com/cli-helpers.exe",
+            }
+        )
+        self.assertEqual(self.window.app_badge.text(), "v0.1.0 (new build)")
+        self.assertEqual(self.window.btn_update_exe.text(), "Needs update")
+        self.assertTrue(self.window.btn_update_exe.isEnabled())
+
+        self.window._on_status_ready(
+            {
+                "git_installed": True,
+                "helpers_installed": True,
+                "dotfiles_installed": True,
+                "dotfiles_user": "u",
+                "exe_version": "v0.1.0",
+                "exe_update_available": True,
+                "exe_latest_version": "v0.2.0",
+                "exe_download_url": "https://example.com/cli-helpers.exe",
+            }
+        )
+        self.assertEqual(self.window.app_label.text(), "CLI Helpers:")
+        self.assertEqual(self.window.app_badge.text(), "v0.1.0 -> v0.2.0")
+        self.assertEqual(self.window.btn_update_exe.text(), "Needs update")
+        self.assertTrue(self.window.btn_update_exe.isEnabled())
 
 
 if __name__ == "__main__":

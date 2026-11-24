@@ -1,11 +1,190 @@
+import hashlib
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
+
+from .version import __version__
+
+
+def _parse_version_tuple(ver_str):
+    cleaned = re.sub(r"^v", "", (ver_str or "").strip(), flags=re.IGNORECASE)
+    parts = []
+    for token in cleaned.split("."):
+        m = re.match(r"^(\d+)", token)
+        if m:
+            parts.append(int(m.group(1)))
+        else:
+            break
+    return tuple(parts)
+
+
+def cleanup_old_exe(exe_path=None):
+    target = exe_path if exe_path is not None else (
+        sys.executable if getattr(sys, "frozen", False) else None
+    )
+    if not target:
+        return
+    for suffix in (".old", ".new"):
+        stale = f"{target}{suffix}"
+        if os.path.exists(stale):
+            try:
+                os.remove(stale)
+            except OSError:
+                pass
+
+
+def _file_sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        while True:
+            chunk = f.read(65536)
+            if not chunk:
+                break
+            h.update(chunk)
+    return h.hexdigest().lower()
+
+
+def _default_local_exe_path(helpers_path=None):
+    if getattr(sys, "frozen", False):
+        return sys.executable
+    candidates = []
+    if helpers_path:
+        candidates.append(os.path.join(helpers_path, "dist", "cli-helpers.exe"))
+    candidates.append(
+        str(Path(__file__).resolve().parent.parent / "dist" / "cli-helpers.exe")
+    )
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return None
+
+
+def check_exe_update(
+    repo="alanlivio/cli-helpers", current_version=None, exe_path=None
+):
+    cur = current_version if current_version is not None else __version__
+    url = f"https://api.github.com/repos/{repo}/releases/latest"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "cli-helpers",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        tag = data.get("tag_name", "")
+        if not tag:
+            return False, "", ""
+        assets = data.get("assets") or []
+        target_asset = None
+        for asset in assets:
+            if asset.get("name", "").lower() == "cli-helpers.exe":
+                target_asset = asset
+                break
+        if target_asset is None:
+            for asset in assets:
+                if asset.get("name", "").lower().endswith(".exe"):
+                    target_asset = asset
+                    break
+        if target_asset is None:
+            return False, tag, ""
+        dl_url = target_asset.get("browser_download_url", "")
+        if not dl_url:
+            return False, tag, ""
+
+        remote_ver = _parse_version_tuple(tag)
+        local_ver = _parse_version_tuple(cur)
+        if remote_ver < local_ver:
+            return False, tag, ""
+        if remote_ver > local_ver:
+            return True, tag, dl_url
+
+        digest = (target_asset.get("digest") or "").strip()
+        remote_sha = (
+            digest.split(":", 1)[1].strip().lower()
+            if ":" in digest
+            else digest.lower()
+        )
+        local_target = (
+            exe_path if exe_path is not None else _default_local_exe_path()
+        )
+        if remote_sha and local_target and os.path.isfile(local_target):
+            if _file_sha256(local_target) != remote_sha:
+                return True, tag, dl_url
+        return False, tag, ""
+    except Exception:
+        pass
+    return False, "", ""
+
+
+def apply_exe_update(download_url, exe_path=None):
+    if exe_path is None and not getattr(sys, "frozen", False):
+        raise RuntimeError(
+            "In-place update only applies to standalone cli-helpers.exe (currently running from Python source)."
+        )
+    target_exe = exe_path or sys.executable
+    new_path = f"{target_exe}.new"
+    old_path = f"{target_exe}.old"
+
+    req = urllib.request.Request(
+        download_url,
+        headers={"User-Agent": "cli-helpers"},
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp, open(new_path, "wb") as dst:
+        shutil.copyfileobj(resp, dst)
+
+    if os.path.getsize(new_path) < 2:
+        os.remove(new_path)
+        raise RuntimeError("Downloaded executable is empty.")
+
+    with open(new_path, "rb") as f:
+        if f.read(2) != b"MZ":
+            os.remove(new_path)
+            raise RuntimeError("Downloaded file is not a valid Windows executable.")
+
+    if os.path.exists(old_path):
+        try:
+            os.remove(old_path)
+        except OSError:
+            pass
+
+    os.replace(target_exe, old_path)
+    try:
+        os.replace(new_path, target_exe)
+    except Exception:
+        if os.path.exists(old_path) and not os.path.exists(target_exe):
+            os.replace(old_path, target_exe)
+        raise
+    return target_exe
+
+
+class ExeUpdateWorker(QThread):
+    output_line = Signal(str)
+    finished = Signal(bool, str)
+
+    def __init__(self, download_url, exe_path=None):
+        super().__init__()
+        self.download_url = download_url
+        self.exe_path = exe_path or sys.executable
+
+    def run(self):
+        try:
+            self.output_line.emit(f"Downloading update from {self.download_url}...")
+            updated_path = apply_exe_update(self.download_url, self.exe_path)
+            self.output_line.emit("Executable updated. Restarting...")
+            self.finished.emit(True, updated_path)
+        except Exception as e:
+            self.output_line.emit(f"Update failed: {e}")
+            self.finished.emit(False, str(e))
 
 
 class HelperWorker(QThread):
@@ -578,6 +757,20 @@ class StatusCheckWorker(QThread):
                 self.dotfiles_path, creation_flags, git_cmd=git_cmd
             )
 
+        result["exe_version"] = f"v{__version__.lstrip('v')}"
+        result["exe_update_available"] = False
+        result["exe_latest_version"] = ""
+        result["exe_download_url"] = ""
+        if self.helpers_path or self.dotfiles_path or getattr(sys, "frozen", False):
+            repo_owner = result["helpers_user"] or "alanlivio"
+            local_exe = _default_local_exe_path(self.helpers_path)
+            has_upd, latest_ver, dl_url = check_exe_update(
+                f"{repo_owner}/cli-helpers", exe_path=local_exe
+            )
+            result["exe_update_available"] = has_upd
+            result["exe_latest_version"] = latest_ver
+            result["exe_download_url"] = dl_url
+
         if not self._killed:
             self.status_ready.emit(result)
 
@@ -586,6 +779,10 @@ __all__ = [
     "HelperWorker",
     "HelperDiscoveryWorker",
     "StatusCheckWorker",
+    "ExeUpdateWorker",
     "build_helper_command",
     "get_git_executable",
+    "check_exe_update",
+    "apply_exe_update",
+    "cleanup_old_exe",
 ]
