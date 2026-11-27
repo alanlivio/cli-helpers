@@ -23,11 +23,11 @@ sh_init: "init.sh" {
   }
 }
 
-os_dependent: "os/*.sh\n..." {
+os_dependent: "os/ubu*.sh\n..." {
   shape: rectangle
 }
 
-program_dependent: "programs/*.sh\ncompletions/*.sh" {
+program_dependent: "programs/<cmd>.sh\n..." {
   shape: rectangle
 }
 
@@ -36,6 +36,6 @@ dotfiles: "~/src/dotfiles/init.sh" {
 }
 
 bashrc -> sh_init: loads
-sh_init -> os_dependent: "1: loads OS modules"
-sh_init -> program_dependent: "2: loads program & completion modules"
+sh_init -> os_dependent: "1: loads if matching OS"
+sh_init -> program_dependent: "2: loads if program exists"
 sh_init -> dotfiles: "3: loads dotfiles if present"

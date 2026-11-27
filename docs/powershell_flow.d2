@@ -23,11 +23,11 @@ ps_init: "init.ps1" {
   }
 }
 
-os_dependent: "os/*.ps1\n..." {
+os_dependent: "os/win*.ps1\n..." {
   shape: rectangle
 }
 
-program_dependent: "programs/*.ps1\ncompletions/*.ps1" {
+program_dependent: "programs/<cmd>.ps1\n..." {
   shape: rectangle
 }
 
@@ -36,6 +36,6 @@ dotfiles: "~/src/dotfiles/init.ps1" {
 }
 
 psprofile -> ps_init: loads
-ps_init -> os_dependent: "1: loads OS modules"
-ps_init -> program_dependent: "2: loads program & completion modules"
+ps_init -> os_dependent: "1: loads if matching OS"
+ps_init -> program_dependent: "2: loads if program exists"
 ps_init -> dotfiles: "3: loads dotfiles if present"

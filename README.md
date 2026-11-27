@@ -1,6 +1,6 @@
 # shell-profile-helpers
 
-`shell-profile-helpers` is a cross-shell library for organizing Bash/Zsh and PowerShell profile helpers. It loads modular scripts across `os/`, `programs/`, and `completions/` via [`init.sh`](init.sh) in `.bashrc`/`.zshrc` and [`init.ps1`](init.ps1) in PowerShell `$PROFILE`, and supports local Git clones, Bash/Zsh plugin managers (Sheldon, Oh My Bash), and a standalone setup/runner GUI (`shell-profile-helpers.exe`).
+`shell-profile-helpers` is a cross-shell library for organizing Bash/Zsh and PowerShell profile helpers. It loads OS-specific and installed-program modules across `os/` and `programs/` via [`init.sh`](init.sh) in `.bashrc`/`.zshrc` and [`init.ps1`](init.ps1) in PowerShell `$PROFILE`, and supports local Git clones, Bash/Zsh plugin managers (Sheldon, Oh My Bash), and a standalone setup/runner GUI (`shell-profile-helpers.exe`).
 
 **From Bash / Zsh:**
 
