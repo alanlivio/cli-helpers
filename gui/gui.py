@@ -243,6 +243,11 @@ class TitleBarWrapper:
         self._title = title
         if self._label and hasattr(self._label, "setText"):
             self._label.setText(title)
+            parent = self._label.parentWidget()
+            if parent is not None:
+                if parent.layout() is not None:
+                    parent.layout().activate()
+                parent.resize(max(parent.sizeHint().width() + 16, 320), 36)
         if self._tb and hasattr(self._tb, "setWindowTitle"):
             self._tb.setWindowTitle(title)
 
@@ -451,6 +456,10 @@ class MainWindow(fluentqt.Window):
                 "font-size: 12px; font-weight: 500; color: #ffffff;"
             )
             tb_layout.addWidget(self.title_label_widget)
+            tb_layout.activate()
+            self.title_bar_container.resize(
+                max(self.title_bar_container.sizeHint().width() + 16, 320), 36
+            )
 
         self.title_bar = TitleBarWrapper(
             self.native_title_bar, "Shell Profile Helpers", self.title_label_widget

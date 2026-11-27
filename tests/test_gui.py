@@ -50,6 +50,11 @@ class TestGui(unittest.TestCase):
         self.assertEqual(
             self.window.title_bar.titleLabel.text(), "Shell Profile Helpers"
         )
+        if self.window.title_bar_container is not None:
+            self.assertGreaterEqual(
+                self.window.title_bar_container.width(),
+                self.window.title_bar_container.sizeHint().width(),
+            )
         self.assertEqual(self.window.setup_title.text(), "Setup")
         self.assertEqual(self.window.tasks_title.text(), "My helpers")
         self.assertEqual(self.window.output_title.text(), "Output log")
