@@ -16,15 +16,25 @@ log_msg() { printf '\033[00;33m-- %s \033[00m\n' "$*"; }
 bashrc_reload() { [ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"; }
 sph-update() { git -C "$SPH_DIR" pull --ff-only; }
 
-for _sph_sub in os programs completions; do
-    if [ -d "$_sph_dir/$_sph_sub" ]; then
-        for _sph_file in "$_sph_dir/$_sph_sub/"*.sh; do
-            if [ -r "$_sph_file" ]; then
+if [ "${OSTYPE#linux}" != "${OSTYPE:-}" ] && [ -f /etc/lsb-release ] && [ -d "$_sph_dir/os" ]; then
+    for _sph_file in "$_sph_dir/os/"ubu*.sh; do
+        if [ -r "$_sph_file" ]; then
+            . "$_sph_file"
+        fi
+    done
+fi
+
+if [ -d "$_sph_dir/programs" ]; then
+    for _sph_file in "$_sph_dir/programs/"*.sh; do
+        if [ -r "$_sph_file" ]; then
+            _sph_prog="${_sph_file##*/}"
+            _sph_prog="${_sph_prog%.sh}"
+            if command -v "$_sph_prog" >/dev/null 2>&1; then
                 . "$_sph_file"
             fi
-        done
-    fi
-done
+        fi
+    done
+fi
 
 if [ -r "$HOME/src/dotfiles/init.sh" ]; then
     . "$HOME/src/dotfiles/init.sh"
@@ -32,4 +42,4 @@ elif [ -n "${_sph_dir:-}" ] && [ -r "$_sph_dir/../dotfiles/init.sh" ]; then
     . "$_sph_dir/../dotfiles/init.sh"
 fi
 
-unset _sph_src _sph_dir _sph_sub _sph_file
+unset _sph_src _sph_dir _sph_file _sph_prog

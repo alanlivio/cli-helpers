@@ -49,7 +49,6 @@ class TestScriptLoading(unittest.TestCase):
         scripts = (
             glob.glob(os.path.join(self.root_dir, "os", "*.sh"))
             + glob.glob(os.path.join(self.root_dir, "programs", "*.sh"))
-            + glob.glob(os.path.join(self.root_dir, "completions", "*.sh"))
             + glob.glob(os.path.join(self.root_dir, "*.sh"))
             + glob.glob(os.path.join(self.root_dir, "packaging", "*.plugin.bash"))
         )
@@ -79,7 +78,6 @@ class TestScriptLoading(unittest.TestCase):
         scripts = (
             glob.glob(os.path.join(self.root_dir, "os", "*.ps1"))
             + glob.glob(os.path.join(self.root_dir, "programs", "*.ps1"))
-            + glob.glob(os.path.join(self.root_dir, "completions", "*.ps1"))
             + glob.glob(os.path.join(self.root_dir, "*.ps1"))
         )
         self.assertGreater(len(scripts), 0)

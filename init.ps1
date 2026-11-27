@@ -9,13 +9,19 @@ function ps_is_running_as_sudo { ([System.Security.Principal.WindowsPrincipal] [
 function ps_func_show($name) { Get-Content "Function:\$name" }
 function Update-ShellProfileHelpers { git -C $global:SPH_DIR pull --ff-only }
 
-foreach ($_sph_sub in @('os', 'programs', 'completions')) {
-    if ($_sph_sub -eq 'os' -and -not [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
-        continue
+if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+    $_sph_os_dir = Join-Path $_sph_dir 'os'
+    if (Test-Path -LiteralPath $_sph_os_dir -PathType Container) {
+        foreach ($_sph_file in (Get-ChildItem -LiteralPath $_sph_os_dir -Filter 'win*.ps1' -File | Sort-Object Name)) {
+            . $_sph_file.FullName
+        }
     }
-    $_sph_path = Join-Path $_sph_dir $_sph_sub
-    if (Test-Path -LiteralPath $_sph_path -PathType Container) {
-        foreach ($_sph_file in (Get-ChildItem -LiteralPath $_sph_path -Filter '*.ps1' -File | Sort-Object Name)) {
+}
+
+$_sph_prog_dir = Join-Path $_sph_dir 'programs'
+if (Test-Path -LiteralPath $_sph_prog_dir -PathType Container) {
+    foreach ($_sph_file in (Get-ChildItem -LiteralPath $_sph_prog_dir -Filter '*.ps1' -File | Sort-Object Name)) {
+        if (Get-Command $_sph_file.BaseName -ErrorAction SilentlyContinue) {
             . $_sph_file.FullName
         }
     }
@@ -27,4 +33,4 @@ if (Test-Path "$HOME/src/dotfiles/init.ps1") {
     . (Join-Path (Split-Path -Parent $_sph_dir) 'dotfiles/init.ps1')
 }
 
-Remove-Variable -Name _sph_dir, _sph_sub, _sph_path, _sph_file -ErrorAction SilentlyContinue
+Remove-Variable -Name _sph_dir, _sph_os_dir, _sph_prog_dir, _sph_file -ErrorAction SilentlyContinue
