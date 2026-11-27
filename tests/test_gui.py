@@ -70,6 +70,11 @@ class TestGui(unittest.TestCase):
         self.assertFalse(hasattr(self.window, "btn_reload_tasks"))
         self.assertEqual(self.window.winget_label.text(), "WinGet:")
         self.assertEqual(self.window.btn_install_winget.text(), "Install WinGet")
+        self.assertFalse(hasattr(self.window, "app_badge"))
+        self.assertFalse(hasattr(self.window, "winget_badge"))
+        self.assertFalse(hasattr(self.window, "git_badge"))
+        self.assertFalse(hasattr(self.window, "helpers_badge"))
+        self.assertFalse(hasattr(self.window, "dotfiles_badge"))
         self.assertEqual(
             self.window.helpers_label.text(), "~/src/shell-profile-helpers:"
         )
@@ -83,6 +88,20 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.tb_username.placeholderText(), "USER")
         self.assertEqual(self.window.dotfiles_repo_suffix.text(), "/dotfiles")
         self.assertFalse(self.window.windowIcon().isNull())
+        self.window.show()
+        self.app.processEvents()
+        self.assertEqual(
+            self.window.helpers_github_prefix.x(),
+            self.window.github_prefix_label.x(),
+        )
+        self.assertEqual(
+            self.window.tb_helpers_user.x(),
+            self.window.tb_username.x(),
+        )
+        self.assertEqual(
+            self.window.helpers_repo_suffix.x(),
+            self.window.dotfiles_repo_suffix.x(),
+        )
 
     def test_path_discovery(self):
         ps = self.window.get_powershell_executable()
@@ -135,15 +154,10 @@ class TestGui(unittest.TestCase):
             "dotfiles_user": "testuser",
         }
         self.window._on_status_ready(mock_info)
-        self.assertEqual(self.window.winget_badge.text(), "Installed")
-        self.assertEqual(self.window.winget_badge.level, InfoLevel.SUCCESS)
-        self.assertEqual(self.window.btn_install_winget.text(), "Installed")
+        self.assertEqual(self.window.btn_install_winget.text(), "v1.29.380")
         self.assertFalse(self.window.btn_install_winget.isEnabled())
-        self.assertEqual(self.window.git_badge.text(), "Installed")
-        self.assertEqual(self.window.helpers_badge.text(), "Installed")
-        self.assertEqual(self.window.helpers_badge.level, InfoLevel.SUCCESS)
-        self.assertEqual(self.window.dotfiles_badge.text(), "Installed")
-        self.assertEqual(self.window.dotfiles_badge.level, InfoLevel.SUCCESS)
+        self.assertEqual(self.window.btn_install_git.text(), "v2.55.0")
+        self.assertFalse(self.window.btn_install_git.isEnabled())
         self.assertEqual(self.window.btn_install_helpers.text(), "Updated")
         self.assertEqual(self.window.btn_clone_dotfiles.text(), "Updated")
         self.assertEqual(self.window.tb_helpers_user.text(), "helperuser")
@@ -163,13 +177,9 @@ class TestGui(unittest.TestCase):
             "dotfiles_user": "testuser",
         }
         self.window._on_status_ready(mock_info)
-        self.assertEqual(self.window.helpers_badge.text(), "Not updated")
-        self.assertEqual(self.window.helpers_badge.level, InfoLevel.WARNING)
-        self.assertEqual(self.window.btn_install_helpers.text(), "Needs update")
+        self.assertEqual(self.window.btn_install_helpers.text(), "Update")
         self.assertTrue(self.window.btn_install_helpers.isEnabled())
-        self.assertEqual(self.window.dotfiles_badge.text(), "Not updated")
-        self.assertEqual(self.window.dotfiles_badge.level, InfoLevel.WARNING)
-        self.assertEqual(self.window.btn_clone_dotfiles.text(), "Needs update")
+        self.assertEqual(self.window.btn_clone_dotfiles.text(), "Update")
         self.assertTrue(self.window.btn_clone_dotfiles.isEnabled())
 
     def test_status_not_installed(self):
@@ -180,16 +190,12 @@ class TestGui(unittest.TestCase):
             "dotfiles_installed": False,
         }
         self.window._on_status_ready(mock_info)
-        self.assertEqual(self.window.winget_badge.text(), "Not installed")
-        self.assertEqual(self.window.winget_badge.level, InfoLevel.WARNING)
         self.assertEqual(self.window.btn_install_winget.text(), "Install WinGet")
         self.assertTrue(self.window.btn_install_winget.isEnabled())
-        self.assertEqual(self.window.helpers_badge.text(), "Not installed")
-        self.assertEqual(self.window.helpers_badge.level, InfoLevel.ERROR)
-        self.assertEqual(self.window.btn_install_helpers.text(), "Clone helpers")
-        self.assertEqual(self.window.dotfiles_badge.text(), "Not installed")
-        self.assertEqual(self.window.dotfiles_badge.level, InfoLevel.ERROR)
-        self.assertEqual(self.window.btn_clone_dotfiles.text(), "Clone dotfiles")
+        self.assertEqual(self.window.btn_install_git.text(), "Install Git")
+        self.assertTrue(self.window.btn_install_git.isEnabled())
+        self.assertEqual(self.window.btn_install_helpers.text(), "Clone")
+        self.assertEqual(self.window.btn_clone_dotfiles.text(), "Clone")
         self.assertFalse(self.window.btn_install_helpers.isEnabled())
         self.assertFalse(self.window.btn_clone_dotfiles.isEnabled())
         self.assertFalse(self.window.btn_my_declutter.isEnabled())
@@ -297,8 +303,7 @@ class TestGui(unittest.TestCase):
                 self.assertIsNotNone(cb)
                 with patch.object(self.window, "check_git_installed", return_value=(True, "v2.55.0")):
                     cb(0)
-                    self.assertEqual(self.window.git_badge.text(), "Installed")
-                    self.assertEqual(self.window.git_badge.level, InfoLevel.SUCCESS)
+                    self.assertEqual(self.window.btn_install_git.text(), "v2.55.0")
                     self.assertFalse(self.window.btn_install_git.isEnabled())
                     self.assertTrue(self.window.btn_install_helpers.isEnabled())
                     self.assertTrue(self.window.btn_clone_dotfiles.isEnabled())
@@ -515,8 +520,7 @@ class TestGui(unittest.TestCase):
                 "exe_download_url": "https://example.com/shell-profile-helpers.exe",
             }
         )
-        self.assertEqual(self.window.app_badge.text(), "v0.1.0 (new build)")
-        self.assertEqual(self.window.btn_update_exe.text(), "Needs update")
+        self.assertEqual(self.window.btn_update_exe.text(), "Update (v0.1.0)")
         self.assertTrue(self.window.btn_update_exe.isEnabled())
 
         self.window._on_status_ready(
@@ -532,8 +536,7 @@ class TestGui(unittest.TestCase):
             }
         )
         self.assertEqual(self.window.app_label.text(), "Shell Profile Helpers:")
-        self.assertEqual(self.window.app_badge.text(), "v0.1.0 -> v0.2.0")
-        self.assertEqual(self.window.btn_update_exe.text(), "Needs update")
+        self.assertEqual(self.window.btn_update_exe.text(), "Update -> v0.2.0")
         self.assertTrue(self.window.btn_update_exe.isEnabled())
 
 

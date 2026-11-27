@@ -401,6 +401,10 @@ class MainWindow(fluentqt.Window):
         self._status_worker = None
         self._exe_update_worker = None
         self._exe_download_url = ""
+        self._winget_installed = False
+        self._git_installed = False
+        self._helpers_needs_action = True
+        self._dotfiles_needs_action = True
         self._cached_ps_exe = None
         self._helpers_ready = bool(
             self.get_helpers_path() or self.get_dotfiles_path()
@@ -592,93 +596,91 @@ class MainWindow(fluentqt.Window):
 
         app_row = QHBoxLayout()
         self.app_label = BodyLabel("Shell Profile Helpers:")
-        self.app_label.setFixedWidth(165)
-        self.app_badge = InfoBadge.info(f"v{__version__.lstrip('v')}")
-        self.btn_update_exe = PushButton("Updated")
-        self.btn_update_exe.setFixedWidth(115)
+        self.app_label.setFixedWidth(180)
+        self.btn_update_exe = PushButton(f"v{__version__.lstrip('v')}")
+        self.btn_update_exe.setFixedWidth(145)
         self.btn_update_exe.setEnabled(False)
         self.btn_update_exe.clicked.connect(self.update_exe)
         app_row.addWidget(self.app_label)
-        app_row.addWidget(self.app_badge)
         app_row.addStretch()
         app_row.addWidget(self.btn_update_exe)
         setup_layout.addLayout(app_row)
 
         winget_row = QHBoxLayout()
         self.winget_label = BodyLabel("WinGet:")
-        self.winget_label.setFixedWidth(165)
-        self.winget_badge = InfoBadge.info("Checking...")
+        self.winget_label.setFixedWidth(180)
         self.btn_install_winget = PushButton("Install WinGet")
-        self.btn_install_winget.setFixedWidth(115)
+        self.btn_install_winget.setFixedWidth(145)
         self.btn_install_winget.clicked.connect(self.install_winget)
         winget_row.addWidget(self.winget_label)
-        winget_row.addWidget(self.winget_badge)
         winget_row.addStretch()
         winget_row.addWidget(self.btn_install_winget)
         setup_layout.addLayout(winget_row)
 
         git_row = QHBoxLayout()
         self.git_label = BodyLabel("Git:")
-        self.git_label.setFixedWidth(165)
-        self.git_badge = InfoBadge.info("Checking...")
+        self.git_label.setFixedWidth(180)
         self.btn_install_git = PushButton("Install Git")
-        self.btn_install_git.setFixedWidth(115)
+        self.btn_install_git.setFixedWidth(145)
         self.btn_install_git.clicked.connect(self.install_git)
         git_row.addWidget(self.git_label)
-        git_row.addWidget(self.git_badge)
         git_row.addStretch()
         git_row.addWidget(self.btn_install_git)
         setup_layout.addLayout(git_row)
 
         helpers_row = QHBoxLayout()
         self.helpers_label = BodyLabel("~/src/shell-profile-helpers:")
-        self.helpers_label.setFixedWidth(165)
+        self.helpers_label.setFixedWidth(180)
         self.helpers_label.setToolTip("Local path: ~/src/shell-profile-helpers")
-        self.helpers_badge = InfoBadge.info("Checking...")
         self.helpers_github_prefix = CaptionLabel("github.com/")
         self.tb_helpers_user = LineEdit()
         self.tb_helpers_user.setPlaceholderText("USER")
-        self.tb_helpers_user.setFixedWidth(85)
+        self.tb_helpers_user.setFixedWidth(120)
         self.tb_helpers_user.setToolTip(
             "shell-profile-helpers will be downloaded from https://github.com/<USER>/shell-profile-helpers"
         )
         self.helpers_repo_suffix = CaptionLabel("/shell-profile-helpers")
-        self.btn_install_helpers = PushButton("Clone helpers")
-        self.btn_install_helpers.setFixedWidth(115)
+        helpers_url_layout = QHBoxLayout()
+        helpers_url_layout.setContentsMargins(0, 0, 0, 0)
+        helpers_url_layout.setSpacing(4)
+        helpers_url_layout.addWidget(self.helpers_github_prefix)
+        helpers_url_layout.addWidget(self.tb_helpers_user)
+        helpers_url_layout.addWidget(self.helpers_repo_suffix)
+        self.btn_install_helpers = PushButton("Clone")
+        self.btn_install_helpers.setFixedWidth(145)
         self.btn_install_helpers.setEnabled(False)
         self.btn_install_helpers.clicked.connect(self.install_or_update_helpers)
         helpers_row.addWidget(self.helpers_label)
-        helpers_row.addWidget(self.helpers_badge)
+        helpers_row.addLayout(helpers_url_layout)
         helpers_row.addStretch()
-        helpers_row.addWidget(self.helpers_github_prefix)
-        helpers_row.addWidget(self.tb_helpers_user)
-        helpers_row.addWidget(self.helpers_repo_suffix)
         helpers_row.addWidget(self.btn_install_helpers)
         setup_layout.addLayout(helpers_row)
 
         dotfiles_row = QHBoxLayout()
         self.dotfiles_label = BodyLabel("~/src/dotfiles:")
-        self.dotfiles_label.setFixedWidth(165)
+        self.dotfiles_label.setFixedWidth(180)
         self.dotfiles_label.setToolTip("Local path: ~/src/dotfiles")
-        self.dotfiles_badge = InfoBadge.info("Checking...")
         self.github_prefix_label = CaptionLabel("github.com/")
         self.tb_username = LineEdit()
         self.tb_username.setPlaceholderText("USER")
-        self.tb_username.setFixedWidth(85)
+        self.tb_username.setFixedWidth(120)
         self.tb_username.setToolTip(
             "Dotfiles will be downloaded from https://github.com/<USER>/dotfiles"
         )
         self.dotfiles_repo_suffix = CaptionLabel("/dotfiles")
-        self.btn_clone_dotfiles = PushButton("Clone dotfiles")
-        self.btn_clone_dotfiles.setFixedWidth(115)
+        dotfiles_url_layout = QHBoxLayout()
+        dotfiles_url_layout.setContentsMargins(0, 0, 0, 0)
+        dotfiles_url_layout.setSpacing(4)
+        dotfiles_url_layout.addWidget(self.github_prefix_label)
+        dotfiles_url_layout.addWidget(self.tb_username)
+        dotfiles_url_layout.addWidget(self.dotfiles_repo_suffix)
+        self.btn_clone_dotfiles = PushButton("Clone")
+        self.btn_clone_dotfiles.setFixedWidth(145)
         self.btn_clone_dotfiles.setEnabled(False)
         self.btn_clone_dotfiles.clicked.connect(self.clone_or_update_dotfiles)
         dotfiles_row.addWidget(self.dotfiles_label)
-        dotfiles_row.addWidget(self.dotfiles_badge)
+        dotfiles_row.addLayout(dotfiles_url_layout)
         dotfiles_row.addStretch()
-        dotfiles_row.addWidget(self.github_prefix_label)
-        dotfiles_row.addWidget(self.tb_username)
-        dotfiles_row.addWidget(self.dotfiles_repo_suffix)
         dotfiles_row.addWidget(self.btn_clone_dotfiles)
         setup_layout.addLayout(dotfiles_row)
 
@@ -800,6 +802,16 @@ class MainWindow(fluentqt.Window):
             max(h, self.minimumHeight()),
         )
 
+    def _set_setup_button(self, btn, text, actionable, tooltip=""):
+        btn.setText(text)
+        btn.setEnabled(bool(actionable))
+        btn.setFluentStyle(
+            fluentqt.Button.ButtonStyle.Accent
+            if actionable
+            else fluentqt.Button.ButtonStyle.Standard
+        )
+        btn.setToolTip(tooltip)
+
     def set_busy(self, busy, status=None):
         self.progress_bar.setVisible(busy)
         if busy:
@@ -807,24 +819,27 @@ class MainWindow(fluentqt.Window):
         else:
             self.progress_bar.stop()
 
-        self.btn_update_exe.setEnabled(not busy and bool(self._exe_download_url))
-        self.btn_install_winget.setEnabled(
-            not busy and self.winget_badge.text() == "Not installed"
-        )
-        self.btn_install_git.setEnabled(
-            not busy and self.git_badge.text() == "Not installed"
-        )
-        is_git_installed = self.git_badge.text() == "Installed"
-        self.btn_install_helpers.setEnabled(
-            not busy
-            and is_git_installed
-            and self.btn_install_helpers.text() != "Updated"
-        )
-        self.btn_clone_dotfiles.setEnabled(
-            not busy
-            and is_git_installed
-            and self.btn_clone_dotfiles.text() != "Updated"
-        )
+        for btn, can_enable in (
+            (self.btn_update_exe, bool(self._exe_download_url)),
+            (self.btn_install_winget, not self._winget_installed),
+            (self.btn_install_git, not self._git_installed),
+            (
+                self.btn_install_helpers,
+                self._git_installed and self._helpers_needs_action,
+            ),
+            (
+                self.btn_clone_dotfiles,
+                self._git_installed and self._dotfiles_needs_action,
+            ),
+        ):
+            enabled = not busy and can_enable
+            btn.setEnabled(enabled)
+            btn.setFluentStyle(
+                fluentqt.Button.ButtonStyle.Accent
+                if enabled
+                else fluentqt.Button.ButtonStyle.Standard
+            )
+
         for btn in self.my_helper_buttons:
             btn.setEnabled(not busy and self._helpers_ready)
 
@@ -954,98 +969,105 @@ class MainWindow(fluentqt.Window):
         self._status_worker.start()
 
     def _on_status_ready(self, info):
-        if info.get("winget_installed"):
-            self.winget_badge.setText("Installed")
-            if info.get("winget_version"):
-                self.winget_badge.setToolTip(info["winget_version"])
-            self.winget_badge.setLevel(InfoLevel.SUCCESS)
-            self.btn_install_winget.setText("Installed")
-            self.btn_install_winget.setEnabled(False)
+        self._winget_installed = bool(info.get("winget_installed"))
+        if self._winget_installed:
+            wg_ver = info.get("winget_version") or "Installed"
+            self._set_setup_button(
+                self.btn_install_winget, wg_ver, False, "WinGet is installed"
+            )
         else:
-            self.winget_badge.setText("Not installed")
-            self.winget_badge.setLevel(InfoLevel.WARNING)
-            self.btn_install_winget.setText("Install WinGet")
-            self.btn_install_winget.setEnabled(True)
+            self._set_setup_button(
+                self.btn_install_winget, "Install WinGet", True, "Install WinGet"
+            )
 
-        if info["git_installed"]:
-            self.git_badge.setText("Installed")
-            if info.get("git_version"):
-                self.git_badge.setToolTip(info["git_version"])
-            self.git_badge.setLevel(InfoLevel.SUCCESS)
-            self.btn_install_git.setEnabled(False)
+        self._git_installed = bool(info.get("git_installed"))
+        if self._git_installed:
+            git_ver = info.get("git_version") or "Installed"
+            self._set_setup_button(
+                self.btn_install_git, git_ver, False, "Git is installed"
+            )
         else:
-            self.git_badge.setText("Not installed")
-            self.git_badge.setLevel(InfoLevel.WARNING)
-            self.btn_install_git.setEnabled(True)
-
-        is_git_installed = bool(info.get("git_installed", False))
+            self._set_setup_button(
+                self.btn_install_git, "Install Git", True, "Install Git"
+            )
 
         if info["helpers_installed"]:
             if info.get("helpers_updated", True):
-                self.helpers_badge.setText("Installed")
-                self.helpers_badge.setLevel(InfoLevel.SUCCESS)
-                self.btn_install_helpers.setText("Updated")
-                self.btn_install_helpers.setEnabled(False)
+                self._helpers_needs_action = False
+                self._set_setup_button(
+                    self.btn_install_helpers, "Updated", False, "Up to date"
+                )
             else:
-                self.helpers_badge.setText("Not updated")
-                self.helpers_badge.setLevel(InfoLevel.WARNING)
-                self.btn_install_helpers.setText("Needs update")
-                self.btn_install_helpers.setEnabled(is_git_installed)
+                self._helpers_needs_action = True
+                self._set_setup_button(
+                    self.btn_install_helpers,
+                    "Update",
+                    self._git_installed,
+                    "Pull latest changes",
+                )
             if info.get("helpers_user") and not self.tb_helpers_user.text().strip():
                 self.tb_helpers_user.setText(info["helpers_user"])
         else:
-            self.helpers_badge.setText("Not installed")
-            self.helpers_badge.setLevel(InfoLevel.ERROR)
-            self.btn_install_helpers.setText("Clone helpers")
-            self.btn_install_helpers.setEnabled(is_git_installed)
+            self._helpers_needs_action = True
+            self._set_setup_button(
+                self.btn_install_helpers,
+                "Clone",
+                self._git_installed,
+                "Clone repository",
+            )
             if not self.tb_helpers_user.text().strip():
                 self.tb_helpers_user.setText(info.get("helpers_user", "alanlivio"))
 
         if info["dotfiles_installed"]:
             if info.get("dotfiles_updated", True):
-                self.dotfiles_badge.setText("Installed")
-                self.dotfiles_badge.setLevel(InfoLevel.SUCCESS)
-                self.btn_clone_dotfiles.setText("Updated")
-                self.btn_clone_dotfiles.setEnabled(False)
+                self._dotfiles_needs_action = False
+                self._set_setup_button(
+                    self.btn_clone_dotfiles, "Updated", False, "Up to date"
+                )
             else:
-                self.dotfiles_badge.setText("Not updated")
-                self.dotfiles_badge.setLevel(InfoLevel.WARNING)
-                self.btn_clone_dotfiles.setText("Needs update")
-                self.btn_clone_dotfiles.setEnabled(is_git_installed)
+                self._dotfiles_needs_action = True
+                self._set_setup_button(
+                    self.btn_clone_dotfiles,
+                    "Update",
+                    self._git_installed,
+                    "Pull latest changes",
+                )
             if info["dotfiles_user"] and not self.tb_username.text().strip():
                 self.tb_username.setText(info["dotfiles_user"])
         else:
-            self.dotfiles_badge.setText("Not installed")
-            self.dotfiles_badge.setLevel(InfoLevel.ERROR)
-            self.btn_clone_dotfiles.setText("Clone dotfiles")
-            self.btn_clone_dotfiles.setEnabled(is_git_installed)
+            self._dotfiles_needs_action = True
+            self._set_setup_button(
+                self.btn_clone_dotfiles,
+                "Clone",
+                self._git_installed,
+                "Clone repository",
+            )
 
         if info.get("helpers_path"):
             self.helpers_label.setToolTip(f"Local path: {info['helpers_path']}")
-            self.helpers_badge.setToolTip(f"Local path: {info['helpers_path']}")
 
         if info.get("dotfiles_path"):
             self.dotfiles_label.setToolTip(f"Local path: {info['dotfiles_path']}")
-            self.dotfiles_badge.setToolTip(f"Local path: {info['dotfiles_path']}")
 
         cur_ver = info.get("exe_version") or f"v{__version__.lstrip('v')}"
         if info.get("exe_update_available") and info.get("exe_download_url"):
             latest_ver = info.get("exe_latest_version", "")
             self._exe_download_url = info["exe_download_url"]
             if latest_ver and latest_ver.lstrip("v") != cur_ver.lstrip("v"):
-                badge_text = f"{cur_ver} -> {latest_ver}"
+                btn_text = f"Update -> {latest_ver}"
             else:
-                badge_text = f"{cur_ver} (new build)"
-            self.app_badge.setText(badge_text)
-            self.app_badge.setLevel(InfoLevel.WARNING)
-            self.btn_update_exe.setText("Needs update")
-            self.btn_update_exe.setEnabled(True)
+                btn_text = f"Update ({cur_ver})"
+            self._set_setup_button(
+                self.btn_update_exe,
+                btn_text,
+                True,
+                f"Current: {cur_ver}",
+            )
         else:
             self._exe_download_url = ""
-            self.app_badge.setText(cur_ver)
-            self.app_badge.setLevel(InfoLevel.SUCCESS)
-            self.btn_update_exe.setText("Updated")
-            self.btn_update_exe.setEnabled(False)
+            self._set_setup_button(
+                self.btn_update_exe, cur_ver, False, "Up to date"
+            )
 
         self._helpers_ready = bool(
             info.get("helpers_installed") or info.get("dotfiles_installed")
@@ -1176,16 +1198,24 @@ class MainWindow(fluentqt.Window):
             if exit_code == 0:
                 installed, version = self.check_git_installed()
                 if installed:
-                    self.git_badge.setText("Installed")
-                    self.git_badge.setLevel(InfoLevel.SUCCESS)
-                    if version:
-                        self.git_badge.setToolTip(version)
-                    self.btn_install_git.setEnabled(False)
-                    self.btn_install_helpers.setEnabled(
-                        self.btn_install_helpers.text() != "Updated"
+                    self._git_installed = True
+                    self._set_setup_button(
+                        self.btn_install_git,
+                        version or "Installed",
+                        False,
+                        "Git is installed",
                     )
-                    self.btn_clone_dotfiles.setEnabled(
-                        self.btn_clone_dotfiles.text() != "Updated"
+                    self._set_setup_button(
+                        self.btn_install_helpers,
+                        self.btn_install_helpers.text(),
+                        self._helpers_needs_action,
+                        self.btn_install_helpers.toolTip(),
+                    )
+                    self._set_setup_button(
+                        self.btn_clone_dotfiles,
+                        self.btn_clone_dotfiles.text(),
+                        self._dotfiles_needs_action,
+                        self.btn_clone_dotfiles.toolTip(),
                     )
 
         self.run_worker_command(
