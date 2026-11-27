@@ -27,10 +27,9 @@ if (Test-Path -LiteralPath $_sph_prog_dir -PathType Container) {
     }
 }
 
-if (Test-Path "$HOME/src/dotfiles/init.ps1") {
-    . "$HOME/src/dotfiles/init.ps1"
-} elseif ($_sph_dir -and (Test-Path (Join-Path (Split-Path -Parent $_sph_dir) 'dotfiles/init.ps1'))) {
-    . (Join-Path (Split-Path -Parent $_sph_dir) 'dotfiles/init.ps1')
+$_sph_dotfiles_init = Join-Path (Split-Path -Parent $_sph_dir) 'dotfiles/init.ps1'
+if (Test-Path -LiteralPath $_sph_dotfiles_init) {
+    . $_sph_dotfiles_init
 }
 
-Remove-Variable -Name _sph_dir, _sph_os_dir, _sph_prog_dir, _sph_file -ErrorAction SilentlyContinue
+Remove-Variable -Name _sph_dir, _sph_os_dir, _sph_prog_dir, _sph_file, _sph_dotfiles_init -ErrorAction SilentlyContinue

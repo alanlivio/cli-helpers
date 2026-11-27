@@ -4,15 +4,7 @@ _sph_log_msg() {
     printf '\033[00;33m-- %s\033[00m\n' "$*"
 }
 
-if [ -n "${BASH_SOURCE[0]:-}" ]; then
-    _sph_inst_src="${BASH_SOURCE[0]}"
-elif [ -n "${ZSH_VERSION:-}" ]; then
-    eval '_sph_inst_src="${(%):-%x}"'
-else
-    _sph_inst_src="$0"
-fi
-
-REPO_DIR="$(cd -- "$(dirname -- "$_sph_inst_src")" >/dev/null 2>&1 && pwd -P)"
+REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" >/dev/null 2>&1 && pwd -P)"
 
 if [ -n "${1:-}" ]; then
     _sph_rc="$1"
@@ -38,7 +30,7 @@ else
     _sph_log_msg "'$_sph_source_line' already exists at $_sph_rc"
 fi
 
-sph-update() {
+sph_update() {
     git -C "$REPO_DIR" pull --ff-only
 }
 
