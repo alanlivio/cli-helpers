@@ -1,0 +1,15 @@
+PackageIdentifier: alanlivio.shellprofilehelpers
+PackageVersion: @VERSION@
+PackageLocale: en-US
+Publisher: Alan Livio
+PackageName: Shell Profile Helpers
+License: MIT
+ShortDescription: Cross-shell profile helpers setup and runner GUI
+Moniker: shell-profile-helpers
+Tags:
+- shell
+- profile
+- helpers
+- dotfiles
+ManifestType: defaultLocale
+ManifestVersion: 1.12.0

@@ -56,13 +56,13 @@ def main():
         "--paths",
         str(root_dir),
         "--add-data",
-        f"{root_dir / 'cli_helpers' / 'resources' / 'icon.ico'}:cli_helpers/resources",
+        f"{root_dir / 'gui' / 'resources' / 'icon.ico'}:gui/resources",
         "--add-data",
         f"{fluentqt_dir / '_icon_aliases.json'}:fluentqt",
         "--icon",
-        str(root_dir / "cli_helpers" / "resources" / "icon.ico"),
+        str(root_dir / "gui" / "resources" / "icon.ico"),
         "--name",
-        "cli-helpers",
+        "shell-profile-helpers",
     ]
 
     version_file = root_dir / "version_info.txt"
@@ -72,7 +72,7 @@ def main():
     for mod in EXCLUDED_MODULES:
         args.extend(["--exclude-module", mod])
 
-    args.append(str(root_dir / "cli_helpers" / "__main__.py"))
+    args.append(str(root_dir / "gui" / "__main__.py"))
     PyInstaller.__main__.run(args)
 
 

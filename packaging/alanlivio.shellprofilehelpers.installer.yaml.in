@@ -1,0 +1,11 @@
+PackageIdentifier: alanlivio.shellprofilehelpers
+PackageVersion: @VERSION@
+Installers:
+- Architecture: x64
+  InstallerType: portable
+  InstallerUrl: https://github.com/alanlivio/shell-profile-helpers/releases/download/v@VERSION@/shell-profile-helpers.exe
+  InstallerSha256: @SHA256@
+  Commands:
+  - shell-profile-helpers
+ManifestType: installer
+ManifestVersion: 1.12.0
