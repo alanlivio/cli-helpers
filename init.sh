@@ -1,27 +1,35 @@
-HELPERS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd -P)"
-
-function log_error { echo -e "\033[00;31m-- $* \033[00m"; }
-function log_msg { echo -e "\033[00;33m-- $* \033[00m"; }
-alias bashrc_reload='source $HOME/.bashrc'
-
-# -- load os/<name>.bash files --
-
-if [[ $OSTYPE == linux* && -f '/etc/lsb-release' ]]; then
-    source "$HELPERS_DIR/os/ubu.bash"
-    source "$HELPERS_DIR/os/ubu_code.bash"
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+    _sph_src="${BASH_SOURCE[0]}"
+elif [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_sph_src="${(%):-%x}"'
+else
+    _sph_src="$0"
 fi
 
-# -- load <program>.bash files --
+_sph_dir="$(cd -- "$(dirname -- "$_sph_src")" >/dev/null 2>&1 && pwd -P)"
+SPH_DIR="$_sph_dir"
+HELPERS_DIR="$_sph_dir"
+export SPH_DIR HELPERS_DIR
 
-for file in "$HELPERS_DIR/programs/"*.bash; do
-    program=$(basename ${file%.*})
-    if type $program &> /dev/null; then
-        source $file
+log_error() { printf '\033[00;31m-- %s \033[00m\n' "$*"; }
+log_msg() { printf '\033[00;33m-- %s \033[00m\n' "$*"; }
+bashrc_reload() { [ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"; }
+sph-update() { git -C "$SPH_DIR" pull --ff-only; }
+
+for _sph_sub in os programs completions; do
+    if [ -d "$_sph_dir/$_sph_sub" ]; then
+        for _sph_file in "$_sph_dir/$_sph_sub/"*.sh; do
+            if [ -r "$_sph_file" ]; then
+                . "$_sph_file"
+            fi
+        done
     fi
 done
 
-# -- load dotfiles/init.sh --
-
-if [[ -f "$HELPERS_DIR/../dotfiles/init.sh" ]]; then
-    source "$HELPERS_DIR/../dotfiles/init.sh"
+if [ -r "$HOME/src/dotfiles/init.sh" ]; then
+    . "$HOME/src/dotfiles/init.sh"
+elif [ -n "${_sph_dir:-}" ] && [ -r "$_sph_dir/../dotfiles/init.sh" ]; then
+    . "$_sph_dir/../dotfiles/init.sh"
 fi
+
+unset _sph_src _sph_dir _sph_sub _sph_file
