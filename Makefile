@@ -33,7 +33,7 @@ icons: gui/resources/icon.ico
 
 gui/resources/icon.ico: gui/icon.d2
 	$(D2) --pad 0 gui/icon.d2 gui/resources/icon.svg
-	node -e "const fs=require('fs'),p='gui/resources/icon.svg';fs.writeFileSync(p,fs.readFileSync(p,'utf8').replace(/font-family: [^;]+;/, 'font-family: Consolas, monospace; font-weight: bold;'))"
+	node -e "const fs=require('fs'),p='gui/resources/icon.svg';let s=fs.readFileSync(p,'utf8').replace(/font-family: [^;]+;/,'font-family: Consolas, monospace; font-weight: 900;').replace(/x=.64. y=.[0-9.]+./,'x=\x220\x22 y=\x2219.5\x22 transform=\x22translate(64,64) scale(1.10,2.25)\x22');fs.writeFileSync(p,s);"
 	npx --yes sharp-cli -i gui/resources/icon.svg -o gui/resources/icon.png resize 256 256
 	npx --yes icon-gen -i gui/resources/icon.svg -o gui/resources --ico --ico-name icon -r
 
