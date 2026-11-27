@@ -37,7 +37,7 @@ import fluentqt
 def get_resource_dir() -> Path:
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
-        for sub in ("cli_helpers/resources", "resources"):
+        for sub in ("gui/resources", "resources"):
             p = Path(meipass) / sub
             if p.is_dir():
                 return p
@@ -56,7 +56,10 @@ def get_app_icon() -> QIcon:
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
         dirs.extend(
-            [Path(meipass) / "cli_helpers" / "resources", Path(meipass) / "resources"]
+            [
+                Path(meipass) / "gui" / "resources",
+                Path(meipass) / "resources",
+            ]
         )
     dirs.extend(
         [
@@ -230,7 +233,7 @@ class TitleLabel:
 
 
 class TitleBarWrapper:
-    def __init__(self, tb, title="CLI Helpers", label_widget=None):
+    def __init__(self, tb, title="Shell Profile Helpers", label_widget=None):
         self._tb = tb
         self._title = title
         self._label = label_widget
@@ -395,11 +398,11 @@ class MainWindow(fluentqt.Window):
         self._exe_download_url = ""
         self._cached_ps_exe = None
         self._helpers_ready = bool(
-            self.get_cli_helpers_path() or self.get_dotfiles_path()
+            self.get_helpers_path() or self.get_dotfiles_path()
         )
 
         setTheme(Theme.DARK)
-        self.setWindowTitle("CLI Helpers")
+        self.setWindowTitle("Shell Profile Helpers")
 
         self.native_title_bar = self.titleBar()
         self.title_bar_container = None
@@ -415,7 +418,7 @@ class MainWindow(fluentqt.Window):
                 self.native_title_bar.setWindowIcon(icon)
 
         if self.native_title_bar:
-            self.native_title_bar.setWindowTitle("CLI Helpers")
+            self.native_title_bar.setWindowTitle("Shell Profile Helpers")
             self.title_bar_container = QWidget(self.native_title_bar)
             self.title_bar_container.setAttribute(
                 Qt.WidgetAttribute.WA_TransparentForMouseEvents
@@ -438,7 +441,9 @@ class MainWindow(fluentqt.Window):
                 self.title_icon_widget.setPixmap(icon.pixmap(16, 16))
                 tb_layout.addWidget(self.title_icon_widget)
 
-            self.title_label_widget = QLabel("CLI Helpers", self.title_bar_container)
+            self.title_label_widget = QLabel(
+                "Shell Profile Helpers", self.title_bar_container
+            )
             self.title_label_widget.setAttribute(
                 Qt.WidgetAttribute.WA_TransparentForMouseEvents
             )
@@ -448,7 +453,7 @@ class MainWindow(fluentqt.Window):
             tb_layout.addWidget(self.title_label_widget)
 
         self.title_bar = TitleBarWrapper(
-            self.native_title_bar, "CLI Helpers", self.title_label_widget
+            self.native_title_bar, "Shell Profile Helpers", self.title_label_widget
         )
 
         if sys.platform == "win32":
@@ -577,11 +582,11 @@ class MainWindow(fluentqt.Window):
         setup_layout.addLayout(setup_header)
 
         app_row = QHBoxLayout()
-        self.app_label = BodyLabel("CLI Helpers:")
-        self.app_label.setFixedWidth(135)
+        self.app_label = BodyLabel("Shell Profile Helpers:")
+        self.app_label.setFixedWidth(165)
         self.app_badge = InfoBadge.info(f"v{__version__.lstrip('v')}")
         self.btn_update_exe = PushButton("Updated")
-        self.btn_update_exe.setFixedWidth(125)
+        self.btn_update_exe.setFixedWidth(115)
         self.btn_update_exe.setEnabled(False)
         self.btn_update_exe.clicked.connect(self.update_exe)
         app_row.addWidget(self.app_label)
@@ -592,10 +597,10 @@ class MainWindow(fluentqt.Window):
 
         winget_row = QHBoxLayout()
         self.winget_label = BodyLabel("WinGet:")
-        self.winget_label.setFixedWidth(135)
+        self.winget_label.setFixedWidth(165)
         self.winget_badge = InfoBadge.info("Checking...")
         self.btn_install_winget = PushButton("Install WinGet")
-        self.btn_install_winget.setFixedWidth(125)
+        self.btn_install_winget.setFixedWidth(115)
         self.btn_install_winget.clicked.connect(self.install_winget)
         winget_row.addWidget(self.winget_label)
         winget_row.addWidget(self.winget_badge)
@@ -605,10 +610,10 @@ class MainWindow(fluentqt.Window):
 
         git_row = QHBoxLayout()
         self.git_label = BodyLabel("Git:")
-        self.git_label.setFixedWidth(135)
+        self.git_label.setFixedWidth(165)
         self.git_badge = InfoBadge.info("Checking...")
         self.btn_install_git = PushButton("Install Git")
-        self.btn_install_git.setFixedWidth(125)
+        self.btn_install_git.setFixedWidth(115)
         self.btn_install_git.clicked.connect(self.install_git)
         git_row.addWidget(self.git_label)
         git_row.addWidget(self.git_badge)
@@ -617,20 +622,20 @@ class MainWindow(fluentqt.Window):
         setup_layout.addLayout(git_row)
 
         helpers_row = QHBoxLayout()
-        self.helpers_label = BodyLabel("~/src/cli-helpers:")
-        self.helpers_label.setFixedWidth(135)
-        self.helpers_label.setToolTip("Local path: ~/src/cli-helpers")
+        self.helpers_label = BodyLabel("~/src/shell-profile-helpers:")
+        self.helpers_label.setFixedWidth(165)
+        self.helpers_label.setToolTip("Local path: ~/src/shell-profile-helpers")
         self.helpers_badge = InfoBadge.info("Checking...")
         self.helpers_github_prefix = CaptionLabel("github.com/")
         self.tb_helpers_user = LineEdit()
         self.tb_helpers_user.setPlaceholderText("USER")
-        self.tb_helpers_user.setFixedWidth(100)
+        self.tb_helpers_user.setFixedWidth(85)
         self.tb_helpers_user.setToolTip(
-            "cli-helpers will be downloaded from https://github.com/<USER>/cli-helpers"
+            "shell-profile-helpers will be downloaded from https://github.com/<USER>/shell-profile-helpers"
         )
-        self.helpers_repo_suffix = CaptionLabel("/cli-helpers")
+        self.helpers_repo_suffix = CaptionLabel("/shell-profile-helpers")
         self.btn_install_helpers = PushButton("Clone helpers")
-        self.btn_install_helpers.setFixedWidth(125)
+        self.btn_install_helpers.setFixedWidth(115)
         self.btn_install_helpers.setEnabled(False)
         self.btn_install_helpers.clicked.connect(self.install_or_update_helpers)
         helpers_row.addWidget(self.helpers_label)
@@ -644,19 +649,19 @@ class MainWindow(fluentqt.Window):
 
         dotfiles_row = QHBoxLayout()
         self.dotfiles_label = BodyLabel("~/src/dotfiles:")
-        self.dotfiles_label.setFixedWidth(135)
+        self.dotfiles_label.setFixedWidth(165)
         self.dotfiles_label.setToolTip("Local path: ~/src/dotfiles")
         self.dotfiles_badge = InfoBadge.info("Checking...")
         self.github_prefix_label = CaptionLabel("github.com/")
         self.tb_username = LineEdit()
         self.tb_username.setPlaceholderText("USER")
-        self.tb_username.setFixedWidth(100)
+        self.tb_username.setFixedWidth(85)
         self.tb_username.setToolTip(
             "Dotfiles will be downloaded from https://github.com/<USER>/dotfiles"
         )
         self.dotfiles_repo_suffix = CaptionLabel("/dotfiles")
         self.btn_clone_dotfiles = PushButton("Clone dotfiles")
-        self.btn_clone_dotfiles.setFixedWidth(125)
+        self.btn_clone_dotfiles.setFixedWidth(115)
         self.btn_clone_dotfiles.setEnabled(False)
         self.btn_clone_dotfiles.clicked.connect(self.clone_or_update_dotfiles)
         dotfiles_row.addWidget(self.dotfiles_label)
@@ -715,11 +720,8 @@ class MainWindow(fluentqt.Window):
 
         output_header = QHBoxLayout()
         self.output_title = SubtitleLabel("Output log")
-        self.btn_clear_output = PushButton("Clear", self, FluentIcon.DELETE)
-        self.btn_clear_output.clicked.connect(self.clear_output)
         output_header.addWidget(self.output_title)
         output_header.addStretch()
-        output_header.addWidget(self.btn_clear_output)
         output_layout.addLayout(output_header)
 
         self.output_box = TextEdit()
@@ -776,6 +778,18 @@ class MainWindow(fluentqt.Window):
         root_layout.addLayout(footer_layout)
 
         self.setContentWidget(root_widget)
+        self.setMinimumSize(700, 480)
+
+    def resize(self, *args):
+        if len(args) == 1:
+            size = args[0]
+            w, h = size.width(), size.height()
+        else:
+            w, h = args
+        super().resize(
+            max(w, self.minimumWidth()),
+            max(h, self.minimumHeight()),
+        )
 
     def set_busy(self, busy, status=None):
         self.progress_bar.setVisible(busy)
@@ -886,15 +900,16 @@ class MainWindow(fluentqt.Window):
             return shutil.which("bash") or "/bin/bash" or "bash"
         return self.get_powershell_executable()
 
-    def get_cli_helpers_path(self):
+    def get_helpers_path(self):
         user_profile = str(Path.home())
         base_dir = os.path.dirname(os.path.abspath(__file__))
         candidates = [
             base_dir,
-            os.path.join(user_profile, "src", "cli-helpers"),
-            os.path.join(user_profile, "src", "dotfiles", "cli-helpers"),
+            os.path.join(user_profile, "src", "shell-profile-helpers"),
+            os.path.join(user_profile, "src", "dotfiles", "shell-profile-helpers"),
             os.path.abspath(os.path.join(base_dir, "..")),
             os.path.abspath(os.path.join(base_dir, "..", "..")),
+            os.path.join(user_profile, "src", "cli-helpers"),
         ]
         for p in candidates:
             if os.path.isdir(p) and (
@@ -922,7 +937,7 @@ class MainWindow(fluentqt.Window):
         return None
 
     def update_setup_status(self):
-        helpers_path = self.get_cli_helpers_path()
+        helpers_path = self.get_helpers_path()
         dotfiles_path = self.get_dotfiles_path()
 
         self._status_worker = StatusCheckWorker(helpers_path, dotfiles_path)
@@ -1071,11 +1086,11 @@ class MainWindow(fluentqt.Window):
         target_exe = (
             sys.executable
             if is_frozen
-            else _default_local_exe_path(self.get_cli_helpers_path())
+            else _default_local_exe_path(self.get_helpers_path())
         )
         if not target_exe:
             self.add_output(
-                "Self-update replaces standalone cli-helpers.exe (currently running from source)."
+                "Self-update replaces standalone shell-profile-helpers.exe (currently running from source)."
             )
             return
         self.set_busy(True, "Updating executable...")
@@ -1173,7 +1188,7 @@ class MainWindow(fluentqt.Window):
         )
 
     def install_or_update_helpers(self):
-        helpers_path = self.get_cli_helpers_path()
+        helpers_path = self.get_helpers_path()
         username = (
             self.tb_helpers_user.text().strip()
             if hasattr(self, "tb_helpers_user")
@@ -1182,32 +1197,36 @@ class MainWindow(fluentqt.Window):
         if not username:
             username = "alanlivio"
         username = re.sub(r"^(https?://)?github\.com/", "", username).strip("/")
-        username = re.sub(r"/cli-helpers(\.git)?$", "", username)
+        username = re.sub(
+            r"/(shell-profile-helpers|cli-helpers)(\.git)?$", "", username
+        )
         git_exe = self.get_git_executable()
 
         if helpers_path:
-            self.add_output(f"Updating cli-helpers at {helpers_path}...")
+            self.add_output(f"Updating shell-profile-helpers at {helpers_path}...")
             self.run_worker_command(
                 git_exe,
                 ["-C", helpers_path, "pull", "--ff", "origin", "main"],
-                status_msg="Updating cli-helpers...",
-                on_success_msg="cli-helpers updated.",
+                status_msg="Updating shell-profile-helpers...",
+                on_success_msg="shell-profile-helpers updated.",
             )
         else:
             user_profile = str(Path.home())
-            target_dir = os.path.join(user_profile, "src", "cli-helpers")
+            target_dir = os.path.join(user_profile, "src", "shell-profile-helpers")
             parent_dir = os.path.join(user_profile, "src")
             os.makedirs(parent_dir, exist_ok=True)
-            self.add_output(f"Cloning {username}/cli-helpers into {target_dir}...")
+            self.add_output(
+                f"Cloning {username}/shell-profile-helpers into {target_dir}..."
+            )
             self.run_worker_command(
                 git_exe,
                 [
                     "clone",
-                    f"https://github.com/{username}/cli-helpers.git",
+                    f"https://github.com/{username}/shell-profile-helpers.git",
                     target_dir,
                 ],
-                status_msg="Cloning cli-helpers...",
-                on_success_msg="cli-helpers cloned.",
+                status_msg="Cloning shell-profile-helpers...",
+                on_success_msg="shell-profile-helpers cloned.",
             )
 
     def clone_or_update_dotfiles(self):
@@ -1266,8 +1285,9 @@ class MainWindow(fluentqt.Window):
             self.add_output(f"Helper is disabled: {selected_task}")
             return
 
+        self.clear_output()
         self.add_output(f">>> Running {selected_task}...")
-        helpers_path = self.get_cli_helpers_path()
+        helpers_path = self.get_helpers_path()
         dotfiles_path = self.get_dotfiles_path()
         shell_exe = self.get_shell_executable()
 
@@ -1310,10 +1330,14 @@ class MainWindow(fluentqt.Window):
         app = QApplication.instance()
         if isinstance(app, QApplication) and getattr(self, "_focus_connected", False):
             self._focus_connected = False
-            try:
-                app.focusChanged.disconnect(self._on_focus_changed)
-            except Exception:
-                pass
+            for sig, slot in (
+                (app.focusChanged, self._on_focus_changed),
+                (app.aboutToQuit, self.kill_workers),
+            ):
+                try:
+                    sig.disconnect(slot)
+                except Exception:
+                    pass
         self.kill_workers()
         super().closeEvent(a0)
 
@@ -1333,7 +1357,7 @@ def main():
             import ctypes
 
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-                "alanlivio.clihelpers.gui"
+                "alanlivio.shellprofilehelpers.gui"
             )
         except Exception:
             pass
@@ -1341,8 +1365,8 @@ def main():
     fluentqt.prepare_high_dpi_application()
     signal.signal(signal.SIGINT, lambda *_: QApplication.quit())
     app = QApplication(sys.argv)
-    app.setApplicationName("CLI Helpers")
-    app.setApplicationDisplayName("CLI Helpers")
+    app.setApplicationName("Shell Profile Helpers")
+    app.setApplicationDisplayName("Shell Profile Helpers")
     icon = get_app_icon()
     if not icon.isNull():
         app.setWindowIcon(icon)

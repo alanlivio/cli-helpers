@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cli-helpers"
-description = "cli-helpers provides an extensible library of bash and powershell scripts to easily setup and use your unix/windows environment."
+name = "shell-profile-helpers"
+description = "shell-profile-helpers provides an extensible cross-shell library of Bash/Zsh and PowerShell helpers to set up and manage your Unix/Windows environment."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -20,15 +20,14 @@ dev = [
 ]
 
 [project.scripts]
-cli-helpers = "cli_helpers.gui:main"
+shell-profile-helpers = "gui.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["cli_helpers*"]
+include = ["gui*"]
 
 [tool.setuptools.package-data]
-cli_helpers = ["resources/*"]
+gui = ["resources/*"]
 
 [tool.setuptools.dynamic]
-version = { attr = "cli_helpers.version.__version__" }
-
+version = { attr = "gui.version.__version__" }

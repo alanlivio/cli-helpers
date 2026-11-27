@@ -22,36 +22,36 @@ deps:
 	python -m pip install -e ".[dev]"
 
 run-gui:
-	python -m cli_helpers
+	python -m gui
 
 clean:
-	rm -rf dist build ./*.egg-info ./*.spec cli_helpers/resources/icon.ico cli_helpers/resources/icon.png cli_helpers/resources/icon.svg
+	rm -rf dist build ./*.egg-info ./*.spec gui/resources/icon.ico gui/resources/icon.png gui/resources/icon.svg
 
 D2 ?= d2
 
-icons: cli_helpers/resources/icon.ico
+icons: gui/resources/icon.ico
 
-cli_helpers/resources/icon.ico: cli_helpers/icon.d2
-	$(D2) --pad 0 cli_helpers/icon.d2 cli_helpers/resources/icon.svg
-	node -e "const fs=require('fs'),p='cli_helpers/resources/icon.svg';fs.writeFileSync(p,fs.readFileSync(p,'utf8').replace(/font-family: [^;]+;/, 'font-family: Consolas, monospace; font-weight: bold;'))"
-	npx --yes sharp-cli -i cli_helpers/resources/icon.svg -o cli_helpers/resources/icon.png resize 256 256
-	npx --yes icon-gen -i cli_helpers/resources/icon.svg -o cli_helpers/resources --ico --ico-name icon -r
+gui/resources/icon.ico: gui/icon.d2
+	$(D2) --pad 0 gui/icon.d2 gui/resources/icon.svg
+	node -e "const fs=require('fs'),p='gui/resources/icon.svg';fs.writeFileSync(p,fs.readFileSync(p,'utf8').replace(/font-family: [^;]+;/, 'font-family: Consolas, monospace; font-weight: bold;'))"
+	npx --yes sharp-cli -i gui/resources/icon.svg -o gui/resources/icon.png resize 256 256
+	npx --yes icon-gen -i gui/resources/icon.svg -o gui/resources --ico --ico-name icon -r
 
 docs:
 	$(D2) --pad 0 docs/bash_flow.d2 docs/bash_flow.svg
 	$(D2) --pad 0 docs/powershell_flow.d2 docs/powershell_flow.svg
 
-gui: dist/cli-helpers.exe
+gui: dist/shell-profile-helpers.exe
 
-dist/cli-helpers.exe: cli_helpers/resources/icon.ico $(wildcard cli_helpers/*.py) packaging/build_exe.py
+dist/shell-profile-helpers.exe: gui/resources/icon.ico $(wildcard gui/*.py) packaging/build_exe.py
 	python packaging/build_exe.py
 
-VERSION ?= $(shell python -c "from cli_helpers.version import __version__; print(__version__)")
+VERSION ?= $(shell python -c "from gui.version import __version__; print(__version__)")
 
-publish-gui: dist/cli-helpers.exe
+publish-gui: dist/shell-profile-helpers.exe
 	@printf "SHA256 (exe): "
-	sha256sum dist/cli-helpers.exe
-	gh release upload v$(VERSION) dist/cli-helpers.exe --clobber || gh release create v$(VERSION) dist/cli-helpers.exe --generate-notes
+	sha256sum dist/shell-profile-helpers.exe
+	gh release upload v$(VERSION) dist/shell-profile-helpers.exe --clobber || gh release create v$(VERSION) dist/shell-profile-helpers.exe --generate-notes
 
-test: cli_helpers/resources/icon.ico
+test: gui/resources/icon.ico
 	python -m unittest discover -s tests

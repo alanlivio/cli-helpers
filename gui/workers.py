@@ -58,9 +58,15 @@ def _default_local_exe_path(helpers_path=None):
         return sys.executable
     candidates = []
     if helpers_path:
-        candidates.append(os.path.join(helpers_path, "dist", "cli-helpers.exe"))
+        candidates.append(
+            os.path.join(helpers_path, "dist", "shell-profile-helpers.exe")
+        )
     candidates.append(
-        str(Path(__file__).resolve().parent.parent / "dist" / "cli-helpers.exe")
+        str(
+            Path(__file__).resolve().parent.parent
+            / "dist"
+            / "shell-profile-helpers.exe"
+        )
     )
     for c in candidates:
         if os.path.isfile(c):
@@ -69,7 +75,7 @@ def _default_local_exe_path(helpers_path=None):
 
 
 def check_exe_update(
-    repo="alanlivio/cli-helpers", current_version=None, exe_path=None
+    repo="alanlivio/shell-profile-helpers", current_version=None, exe_path=None
 ):
     cur = current_version if current_version is not None else __version__
     url = f"https://api.github.com/repos/{repo}/releases/latest"
@@ -77,7 +83,7 @@ def check_exe_update(
         url,
         headers={
             "Accept": "application/vnd.github.v3+json",
-            "User-Agent": "cli-helpers",
+            "User-Agent": "shell-profile-helpers",
         },
     )
     try:
@@ -89,7 +95,7 @@ def check_exe_update(
         assets = data.get("assets") or []
         target_asset = None
         for asset in assets:
-            if asset.get("name", "").lower() == "cli-helpers.exe":
+            if asset.get("name", "").lower() == "shell-profile-helpers.exe":
                 target_asset = asset
                 break
         if target_asset is None:
@@ -131,7 +137,7 @@ def check_exe_update(
 def apply_exe_update(download_url, exe_path=None):
     if exe_path is None and not getattr(sys, "frozen", False):
         raise RuntimeError(
-            "In-place update only applies to standalone cli-helpers.exe (currently running from Python source)."
+            "In-place update only applies to standalone shell-profile-helpers.exe (currently running from Python source)."
         )
     target_exe = exe_path or sys.executable
     new_path = f"{target_exe}.new"
@@ -139,7 +145,7 @@ def apply_exe_update(download_url, exe_path=None):
 
     req = urllib.request.Request(
         download_url,
-        headers={"User-Agent": "cli-helpers"},
+        headers={"User-Agent": "shell-profile-helpers"},
     )
     with urllib.request.urlopen(req, timeout=60) as resp, open(new_path, "wb") as dst:
         shutil.copyfileobj(resp, dst)
@@ -273,10 +279,11 @@ def _default_helpers_path():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     candidates = [
         base_dir,
-        os.path.join(user_profile, "src", "cli-helpers"),
-        os.path.join(user_profile, "src", "dotfiles", "cli-helpers"),
+        os.path.join(user_profile, "src", "shell-profile-helpers"),
+        os.path.join(user_profile, "src", "dotfiles", "shell-profile-helpers"),
         os.path.abspath(os.path.join(base_dir, "..")),
         os.path.abspath(os.path.join(base_dir, "..", "..")),
+        os.path.join(user_profile, "src", "cli-helpers"),
     ]
     for p in candidates:
         if os.path.isdir(p) and (
@@ -501,7 +508,8 @@ class StatusCheckWorker(QThread):
                 )
             ),
             "helpers_updated": True,
-            "helpers_path": self.helpers_path or os.path.join(user_profile, "src", "cli-helpers"),
+            "helpers_path": self.helpers_path
+            or os.path.join(user_profile, "src", "shell-profile-helpers"),
             "helpers_user": "",
             "dotfiles_installed": bool(
                 self.dotfiles_path
@@ -666,7 +674,7 @@ class StatusCheckWorker(QThread):
             repo_owner = result["helpers_user"] or "alanlivio"
             local_exe = _default_local_exe_path(self.helpers_path)
             has_upd, latest_ver, dl_url = check_exe_update(
-                f"{repo_owner}/cli-helpers", exe_path=local_exe
+                f"{repo_owner}/shell-profile-helpers", exe_path=local_exe
             )
             result["exe_update_available"] = has_upd
             result["exe_latest_version"] = latest_ver

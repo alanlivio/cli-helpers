@@ -12,7 +12,7 @@ root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-from cli_helpers.gui import (
+from gui.gui import (
     ALLOWED_MY_HELPERS,
     MainWindow,
     HelperWorker,
@@ -41,11 +41,15 @@ class TestGui(unittest.TestCase):
         ]:
             if worker and worker.isRunning():
                 worker.wait(100)
+        self.window.deleteLater()
         self.app.processEvents()
+        self.window = None
 
     def test_window_properties(self):
-        self.assertEqual(self.window.windowTitle(), "CLI Helpers")
-        self.assertEqual(self.window.title_bar.titleLabel.text(), "CLI Helpers")
+        self.assertEqual(self.window.windowTitle(), "Shell Profile Helpers")
+        self.assertEqual(
+            self.window.title_bar.titleLabel.text(), "Shell Profile Helpers"
+        )
         self.assertEqual(self.window.setup_title.text(), "Setup")
         self.assertEqual(self.window.tasks_title.text(), "My helpers")
         self.assertEqual(self.window.output_title.text(), "Output log")
@@ -53,15 +57,22 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.btn_my_dotfiles.text(), "my_dotfiles")
         self.assertEqual(self.window.btn_my_software.text(), "my_software")
         self.assertFalse(hasattr(self.window, "btn_refresh_all"))
+        self.assertFalse(hasattr(self.window, "btn_clear_output"))
         self.assertFalse(hasattr(self.window, "task_selector"))
+        self.assertGreaterEqual(self.window.minimumWidth(), 700)
+        self.assertGreaterEqual(self.window.minimumHeight(), 480)
         self.assertFalse(hasattr(self.window, "my_task_selector"))
         self.assertFalse(hasattr(self.window, "btn_reload_tasks"))
         self.assertEqual(self.window.winget_label.text(), "WinGet:")
         self.assertEqual(self.window.btn_install_winget.text(), "Install WinGet")
-        self.assertEqual(self.window.helpers_label.text(), "~/src/cli-helpers:")
+        self.assertEqual(
+            self.window.helpers_label.text(), "~/src/shell-profile-helpers:"
+        )
         self.assertEqual(self.window.helpers_github_prefix.text(), "github.com/")
         self.assertEqual(self.window.tb_helpers_user.placeholderText(), "USER")
-        self.assertEqual(self.window.helpers_repo_suffix.text(), "/cli-helpers")
+        self.assertEqual(
+            self.window.helpers_repo_suffix.text(), "/shell-profile-helpers"
+        )
         self.assertEqual(self.window.dotfiles_label.text(), "~/src/dotfiles:")
         self.assertEqual(self.window.github_prefix_label.text(), "github.com/")
         self.assertEqual(self.window.tb_username.placeholderText(), "USER")
@@ -72,7 +83,7 @@ class TestGui(unittest.TestCase):
         ps = self.window.get_powershell_executable()
         self.assertTrue(bool(ps))
 
-        helpers_path = self.window.get_cli_helpers_path()
+        helpers_path = self.window.get_helpers_path()
         self.assertIsNotNone(helpers_path)
         assert helpers_path is not None
         self.assertTrue(os.path.isdir(helpers_path))
@@ -203,6 +214,16 @@ class TestGui(unittest.TestCase):
             self.window.output_box.toPlainText(),
         )
 
+        self.window.add_output("previous stale log line")
+        with patch.object(self.window, "set_busy"), patch(
+            "gui.gui.HelperWorker"
+        ) as mock_worker_cls:
+            self.window.execute_task("my_dotfiles")
+            mock_worker_cls.return_value.start.assert_called_once()
+        log_text = self.window.output_box.toPlainText()
+        self.assertNotIn("previous stale log line", log_text)
+        self.assertIn(">>> Running my_dotfiles...", log_text)
+
     def test_command_worker_execution(self):
         worker = HelperWorker(sys.executable, ["-c", "print('worker_test_line')"])
         received_lines = []
@@ -236,7 +257,7 @@ class TestGui(unittest.TestCase):
             build_helper_command("win_task", shell_exe="powershell.exe")
 
     def test_icon_loading(self):
-        from cli_helpers.gui import get_app_icon
+        from gui.gui import get_app_icon
         icon = get_app_icon()
         self.assertFalse(icon.isNull())
 
@@ -349,7 +370,9 @@ class TestGui(unittest.TestCase):
             side_effect=lambda *args, **kwargs: called.append(args),
         ), patch.object(self.window, "get_git_executable", return_value="git"):
             with patch.object(
-                self.window, "get_cli_helpers_path", return_value="/tmp/cli-helpers"
+                self.window,
+                "get_helpers_path",
+                return_value="/tmp/shell-profile-helpers",
             ):
                 self.window.install_or_update_helpers()
             with patch.object(
@@ -359,7 +382,10 @@ class TestGui(unittest.TestCase):
 
         self.assertEqual(
             called[0],
-            ("git", ["-C", "/tmp/cli-helpers", "pull", "--ff", "origin", "main"]),
+            (
+                "git",
+                ["-C", "/tmp/shell-profile-helpers", "pull", "--ff", "origin", "main"],
+            ),
         )
         self.assertEqual(
             called[1],
@@ -371,7 +397,7 @@ class TestGui(unittest.TestCase):
         import io
         import json
         import tempfile
-        from cli_helpers.workers import (
+        from gui.workers import (
             check_exe_update,
             apply_exe_update,
             cleanup_old_exe,
@@ -382,8 +408,8 @@ class TestGui(unittest.TestCase):
                 "tag_name": "v9.9.9",
                 "assets": [
                     {
-                        "name": "cli-helpers.exe",
-                        "browser_download_url": "https://example.com/cli-helpers.exe",
+                        "name": "shell-profile-helpers.exe",
+                        "browser_download_url": "https://example.com/shell-profile-helpers.exe",
                     }
                 ],
             }
@@ -402,13 +428,13 @@ class TestGui(unittest.TestCase):
             has_upd, ver, url = check_exe_update(current_version="0.1.0")
             self.assertTrue(has_upd)
             self.assertEqual(ver, "v9.9.9")
-            self.assertEqual(url, "https://example.com/cli-helpers.exe")
+            self.assertEqual(url, "https://example.com/shell-profile-helpers.exe")
 
             no_upd, _, _ = check_exe_update(current_version="9.9.9")
             self.assertFalse(no_upd)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            fake_exe = os.path.join(tmpdir, "cli-helpers.exe")
+            fake_exe = os.path.join(tmpdir, "shell-profile-helpers.exe")
             with open(fake_exe, "wb") as f:
                 f.write(b"MZoldbinary")
 
@@ -420,9 +446,9 @@ class TestGui(unittest.TestCase):
                     "tag_name": "v0.1.0",
                     "assets": [
                         {
-                            "name": "cli-helpers.exe",
+                            "name": "shell-profile-helpers.exe",
                             "digest": f"sha256:{old_hash}",
-                            "browser_download_url": "https://example.com/cli-helpers.exe",
+                            "browser_download_url": "https://example.com/shell-profile-helpers.exe",
                         }
                     ],
                 }
@@ -440,9 +466,9 @@ class TestGui(unittest.TestCase):
                     "tag_name": "v0.1.0",
                     "assets": [
                         {
-                            "name": "cli-helpers.exe",
+                            "name": "shell-profile-helpers.exe",
                             "digest": f"sha256:{new_hash}",
-                            "browser_download_url": "https://example.com/cli-helpers.exe",
+                            "browser_download_url": "https://example.com/shell-profile-helpers.exe",
                         }
                     ],
                 }
@@ -456,13 +482,13 @@ class TestGui(unittest.TestCase):
                 )
                 self.assertTrue(has_upd)
                 self.assertEqual(ver, "v0.1.0")
-                self.assertEqual(url, "https://example.com/cli-helpers.exe")
+                self.assertEqual(url, "https://example.com/shell-profile-helpers.exe")
 
             with patch(
                 "urllib.request.urlopen", return_value=DummyResp(b"MZnewbinary")
             ):
                 updated = apply_exe_update(
-                    "https://example.com/cli-helpers.exe", exe_path=fake_exe
+                    "https://example.com/shell-profile-helpers.exe", exe_path=fake_exe
                 )
                 self.assertEqual(updated, fake_exe)
                 with open(fake_exe, "rb") as f:
@@ -481,7 +507,7 @@ class TestGui(unittest.TestCase):
                 "exe_version": "v0.1.0",
                 "exe_update_available": True,
                 "exe_latest_version": "v0.1.0",
-                "exe_download_url": "https://example.com/cli-helpers.exe",
+                "exe_download_url": "https://example.com/shell-profile-helpers.exe",
             }
         )
         self.assertEqual(self.window.app_badge.text(), "v0.1.0 (new build)")
@@ -497,10 +523,10 @@ class TestGui(unittest.TestCase):
                 "exe_version": "v0.1.0",
                 "exe_update_available": True,
                 "exe_latest_version": "v0.2.0",
-                "exe_download_url": "https://example.com/cli-helpers.exe",
+                "exe_download_url": "https://example.com/shell-profile-helpers.exe",
             }
         )
-        self.assertEqual(self.window.app_label.text(), "CLI Helpers:")
+        self.assertEqual(self.window.app_label.text(), "Shell Profile Helpers:")
         self.assertEqual(self.window.app_badge.text(), "v0.1.0 -> v0.2.0")
         self.assertEqual(self.window.btn_update_exe.text(), "Needs update")
         self.assertTrue(self.window.btn_update_exe.isEnabled())

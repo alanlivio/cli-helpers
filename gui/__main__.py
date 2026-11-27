@@ -25,7 +25,7 @@ if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
         except Exception:
             pass
 
-from cli_helpers.gui import main
+from gui.gui import main
 
 if __name__ == "__main__":
     main()
