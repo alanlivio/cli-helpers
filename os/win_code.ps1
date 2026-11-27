@@ -1,0 +1,207 @@
+function _win_wsl_auto {
+    param(
+        [string]$executable,
+        [string]$folder_path = (Get-Location).ProviderPath,
+        [string[]]$extra_args
+    )
+    if ([string]::IsNullOrWhiteSpace($executable)) {
+        return
+    }
+    if ([string]::IsNullOrWhiteSpace($folder_path)) {
+        $folder_path = (Get-Location).ProviderPath
+    }
+    $is_unc = (Get-Location).ProviderPath.StartsWith('\\')
+    if ($folder_path -like '-*') {
+        if ($is_unc) { Push-Location $env:TEMP }
+        try {
+            & $executable $folder_path @extra_args
+        } finally {
+            if ($is_unc) { Pop-Location }
+        }
+        return
+    }
+    $resolved_path = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($folder_path)
+    $is_file = if (Test-Path -LiteralPath $resolved_path) {
+        Test-Path -LiteralPath $resolved_path -PathType Leaf
+    } else {
+        [System.IO.Path]::HasExtension($resolved_path)
+    }
+    if ($resolved_path -match '^\\\\wsl(?:\.localhost|\$)\\[^\\]+$') {
+        $resolved_path += '\'
+    }
+    if ($is_unc) { Push-Location $env:TEMP }
+    try {
+        if ($resolved_path -match '^\\\\wsl(?:\.localhost|\$)\\([^\\]+)\\(.*)$') {
+            $distro_name = $matches[1]
+            $linux_path = '/' + ($matches[2] -replace '\\', '/')
+            if ($is_file) {
+                & $executable --file-uri "vscode-remote://wsl+$distro_name$linux_path" @extra_args
+            } else {
+                & $executable --folder-uri "vscode-remote://wsl+$distro_name$linux_path" @extra_args
+            }
+        } else {
+            & $executable $resolved_path @extra_args
+        }
+    } finally {
+        if ($is_unc) { Pop-Location }
+    }
+}
+
+# -- code --
+
+function _code_get_executable {
+    $candidates = @(
+        "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd",
+        "$env:ProgramFiles\Microsoft VS Code\bin\code.cmd",
+        "${env:ProgramFiles(x86)}\Microsoft VS Code\bin\code.cmd"
+    )
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+            return $candidate
+        }
+    }
+    return $null
+}
+
+function code_install_extensions {
+    param (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)] [string[]]$extensions
+    )
+    $executable = _code_get_executable
+    if (-not $executable) {
+        return
+    }
+    $installed = @(& $executable --list-extensions)
+    foreach ($ext in $extensions) {
+        if ($installed -notcontains $ext) {
+            & $executable --install-extension $ext
+        }
+    }
+}
+
+function code_install_extensions_from_txt {
+    param([string]$path)
+    if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path $path)) {
+        return $false
+    }
+    $extensions = Get-Content $path | ForEach-Object { ($_ -split '#')[0].Trim() } | Where-Object { $_ }
+    code_install_extensions -extensions $extensions
+}
+
+function code_wsl_auto {
+    param(
+        [Parameter(Position = 0)] [string]$folder_path = (Get-Location).ProviderPath,
+        [Parameter(ValueFromRemainingArguments = $true)] [string[]]$extra_args
+    )
+    $executable = _code_get_executable
+    if (-not $executable) {
+        return
+    }
+    _win_wsl_auto -executable $executable -folder_path $folder_path -extra_args $extra_args
+}
+
+function code_alias_to_auto_open_wsl {
+    if (-not [Environment]::UserInteractive) { return }
+    $executable = _code_get_executable
+    if ($executable) {
+        Set-Alias -Name code -Value code_wsl_auto -Scope Global -Option AllScope -Force
+    }
+}
+
+function code_win_modern_context_menu_add {
+    param(
+        [string]$name = "code_wsl_auto",
+        [string]$title = "Open with Code (Auto WSL)",
+        [string]$ps_function = "code_wsl_auto"
+    )
+    $icon = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe,0"
+    win_modern_context_menu_add -name $name -title $title -ps_function $ps_function -icon $icon
+}
+
+function code_win_modern_context_menu_remove {
+    param([string]$name = "code_wsl_auto")
+    win_modern_context_menu_remove -name $name
+}
+
+# -- antigravity-ide --
+
+function _antigravity_ide_get_executable {
+    $candidates = @(
+        "$env:LOCALAPPDATA\Programs\Antigravity IDE\bin\antigravity-ide.cmd",
+        "$env:ProgramFiles\Antigravity IDE\bin\antigravity-ide.cmd",
+        "${env:ProgramFiles(x86)}\Antigravity IDE\bin\antigravity-ide.cmd"
+    )
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+            return $candidate
+        }
+    }
+    return $null
+}
+
+function antigravity_ide_install_extensions {
+    param(
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)] [string[]]$extensions
+    )
+    $executable = _antigravity_ide_get_executable
+    if (-not $executable) {
+        return
+    }
+    $installed = @(& $executable --list-extensions)
+    foreach ($ext in $extensions) {
+        if ($installed -notcontains $ext) {
+            & $executable --install-extension $ext
+        }
+    }
+}
+
+function antigravity_ide_install_extensions_from_txt {
+    param([string]$path)
+    if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path $path)) {
+        return $false
+    }
+    $extensions = Get-Content $path | ForEach-Object { ($_ -split '#')[0].Trim() } | Where-Object { $_ }
+    antigravity_ide_install_extensions -extensions $extensions
+}
+
+function antigravity_ide_open_wsl_auto {
+    param(
+        [Parameter(Position = 0)] [string]$folder_path = (Get-Location).ProviderPath,
+        [Parameter(ValueFromRemainingArguments = $true)] [string[]]$extra_args
+    )
+    $executable = _antigravity_ide_get_executable
+    if (-not $executable) {
+        return
+    }
+    _win_wsl_auto -executable $executable -folder_path $folder_path -extra_args $extra_args
+}
+
+function antigravity_ide_alias_to_open_wsl_auto {
+    if (-not [Environment]::UserInteractive) { return }
+    $executable = _antigravity_ide_get_executable
+    if ($executable) {
+        Set-Alias -Name antigravity-ide -Value antigravity_ide_open_wsl_auto -Scope Global -Option AllScope -Force
+    }
+}
+
+function antigravity_ide_win_modern_context_menu_add {
+    param(
+        [string]$name = "antigravity_ide_open_wsl_auto",
+        [string]$title = "Open with Antigravity IDE (Auto WSL)",
+        [string]$ps_function = "antigravity_ide_open_wsl_auto"
+    )
+    $icon = "$env:LOCALAPPDATA\Programs\Antigravity IDE\Antigravity IDE.exe,0"
+    win_modern_context_menu_add -name $name -title $title -ps_function $ps_function -icon $icon
+}
+
+function antigravity_ide_win_modern_context_menu_remove {
+    param([string]$name = "antigravity_ide_open_wsl_auto")
+    win_modern_context_menu_remove -name $name
+}
+
+function antigravity_ide_fix_menu_start {
+    $sh = New-Object -ComObject WScript.Shell
+    $sc = $sh.CreateShortcut("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Antigravity IDE\Antigravity IDE.lnk")
+    $sc.Arguments = "--no-sandbox"
+    $sc.Save()
+}

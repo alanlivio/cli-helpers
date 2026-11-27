@@ -6,9 +6,9 @@
   xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
   xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
-  <Identity Name="alanlivio.cli-helpers" Publisher="CN=alanlivio" Version="1.0.0.0" ProcessorArchitecture="x64" />
+  <Identity Name="alanlivio.shell-profile-helpers" Publisher="CN=alanlivio" Version="1.0.0.0" ProcessorArchitecture="x64" />
   <Properties>
-    <DisplayName>cli-helpers</DisplayName>
+    <DisplayName>shell-profile-helpers</DisplayName>
     <PublisherDisplayName>alanlivio</PublisherDisplayName>
     <Logo>logo.png</Logo>
   </Properties>
@@ -20,11 +20,11 @@
   </Capabilities>
   <Applications>
     <Application Id="App" Executable="launcher.exe" EntryPoint="Windows.FullTrustApplication">
-      <uap:VisualElements DisplayName="cli-helpers" Description="cli-helpers" Square150x150Logo="logo.png" Square44x44Logo="logo.png" BackgroundColor="transparent" AppListEntry="none" />
+      <uap:VisualElements DisplayName="shell-profile-helpers" Description="shell-profile-helpers" Square150x150Logo="logo.png" Square44x44Logo="logo.png" BackgroundColor="transparent" AppListEntry="none" />
       <Extensions>
         <com:Extension Category="windows.comServer">
           <com:ComServer>
-            <com:SurrogateServer DisplayName="CliHelpersShellExt">
+            <com:SurrogateServer DisplayName="ShellProfileHelpersShellExt">
 {{ com_classes }}
             </com:SurrogateServer>
           </com:ComServer>

@@ -1,0 +1,1680 @@
+# -- my_ helpers --
+
+function my_declutter() {
+    win_declutter_all
+    explorer_hide_home_dotfiles
+}
+
+function my_software() {
+    win_install_python_silent
+    winget_upgrade_user
+}
+
+function my_dotfiles() {
+    $dotfiles_dir = if (Test-Path variable:global:DOTFILES) { $global:DOTFILES } elseif (Test-Path "$env:USERPROFILE\src\dotfiles") { "$env:USERPROFILE\src\dotfiles" } else { $null }
+    if ($dotfiles_dir -and (Test-Path "$dotfiles_dir\.git")) {
+        if (Get-Command git_pull_recursive -ErrorAction SilentlyContinue) {
+            git_pull_recursive $dotfiles_dir
+        } elseif (Get-Command git -ErrorAction SilentlyContinue) {
+            git -C $dotfiles_dir pull
+        }
+    }
+    explorer_hide_home_dotfiles
+}
+
+# -- winget --
+
+function winget_upgrade_user() {
+    log_msg "winget upgrade scope user"
+    $upgrades = winget upgrade --scope user --accept-source-agreements
+    if ($upgrades -notmatch "No installed package found") {
+        winget upgrade --all --accept-package-agreements --accept-source-agreements --scope user
+    }
+}
+
+function winget_install() {
+    winget list --accept-source-agreements -q $args[0] | Out-Null # first arg is the id
+    if (-not($?)) {
+        winget install @args --accept-package-agreements --accept-source-agreements
+    }
+}
+
+function winget_uninstall() {
+    param ([Parameter(Mandatory = $true)][string] $pkg)
+    winget list -q $pkg | Out-Null
+    if ($?) {
+        winget uninstall $pkg
+    }
+}
+
+function winget_download_installer {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$package_id,
+        [string]$download_dir = "$env:TEMP\winget_downloads"
+    )
+    if (-not (Test-Path -Path $download_dir)) {
+        New-Item -ItemType Directory -Path $download_dir -Force | Out-Null
+    }
+    $target_dir = Join-Path -Path $download_dir -ChildPath $package_id
+    winget download --id $package_id --download-directory $target_dir --accept-source-agreements | Out-Null
+    $installer_file = Get-ChildItem -Path $target_dir -Recurse -File | Where-Object { $_.Extension -in '.exe', '.msi' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($installer_file) {
+        return  $installer_file.FullName
+    }
+    return $null
+}
+
+function winget_install_with_sudo_installer() {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$package_id
+    )
+    winget list --accept-source-agreements -q $package_id | Out-Null
+    if ($?) { return }
+    $installer_file = if (Test-Path -Path $package_id) { $package_id } else { winget_download_installer -package_id $package_id }
+    if (-not $installer_file) {
+        log_error "Installer file not found for $package_id"
+        return $false
+    }
+    if ($installer_file -notlike '*.exe' -and $installer_file -notlike '*.msi') {
+        log_error "Installer file must be .exe or .msi"
+        return $false
+    }
+    if (Get-Command _sudo_cred -ErrorAction SilentlyContinue) {
+        $cred = _sudo_cred
+        if ($cred) {
+            icacls ($installer_file -replace '/', '\') /grant "$($cred.UserName):(F)" > $null 2>&1
+        }
+    }
+    try {
+        if ($installer_file -like '*.exe') {
+            sudo $installer_file /SILENT /NORESTART
+        } elseif ($installer_file -like '*.msi') {
+            sudo msiexec /i $installer_file /qb /norestart
+        }
+        return $true
+    } catch {
+        log_error "Failed to install ${installer_file}: $_"
+        return $false
+    }
+}
+
+function winget_fix_cache() {
+    if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping winget_fix_source"; return }
+    Remove-Item -Path "$env:LOCALAPPDATA\Temp\WinGet\*" -Recurse -Force -ErrorAction SilentlyContinue
+    winget source reset --force
+    winget source update
+    winget source list
+}
+
+function win_os_upgrade() {
+    if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping"; return }
+    # https://gist.github.com/billpieper/a39173afa0b343a14ddeeb1d79ab14ea
+    if (-Not(Get-Command Install-WindowsUpdate -errorAction SilentlyContinue)) {
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+        Install-Module -Name PSWindowsUpdate -Scope CurrentUser -Force
+        # Add-WUServiceManager -MicrosoftUpdate -Confirm:$false | Out-Null
+    }
+    $(Install-WindowsUpdate -AcceptAll -IgnoreReboot) | Where-Object {
+        if ($_ -is [string]) {
+            $_.Split('', [System.StringSplitOptions]::RemoveEmptyEntries)
+        }
+    }
+}
+
+# -- coreutils --
+
+function du_folder_list_sorted_by_size {
+    du.exe -ahd 1 | sort.exe -h
+}
+
+
+# -- wsl --
+
+function wsl_get_default() {
+    [System.Text.Encoding]::Unicode.GetString([System.Text.Encoding]::UTF8.GetBytes((wsl -l))) -split '\s\s+' | ForEach-Object {
+        if ($_.Contains('(')) {
+            return $_.Split(' ')[0]
+        }
+    }
+}
+
+function wsl_terminate() {
+    wsl -t (wsl_get_default)
+}
+
+function wsl_check_status {
+    $wsl_list = wsl -l -v
+    $vmmem_proc = Get-Process -Name "vmmem*" -ErrorAction SilentlyContinue
+    $lxss_service = Get-Service -Name "LxssManager" -ErrorAction SilentlyContinue
+    $wsl_service = Get-Service -Name "WSLService" -ErrorAction SilentlyContinue
+    $port_check = Test-NetConnection -ComputerName 127.0.0.1 -Port 22 -WarningAction SilentlyContinue
+    [PSCustomObject]@{
+        wsl_distros        = ($wsl_list -join "; ")
+        vmmem_running      = [bool]$vmmem_proc
+        vmmem_memory_mb    = if ($vmmem_proc) { [math]::Round($vmmem_proc.WorkingSet64 / 1MB, 2) } else { 0 }
+        lxss_status        = if ($lxss_service) { $lxss_service.Status } else { "NotFound" }
+        wsl_service_status = if ($wsl_service) { $wsl_service.Status } else { "NotFound" }
+        ssh_port_open      = $port_check.TcpTestSucceeded
+    }
+}
+
+function wsl_move_default_vhdx {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string]$target_dir
+    )
+
+    $distro = wsl_get_default
+    if (-not $distro) { $distro = "Ubuntu" }
+
+    $distro_reg = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss\*" -ErrorAction SilentlyContinue |
+    Where-Object { $_.DistributionName -eq $distro } |
+    Select-Object -First 1
+
+    if (-not $distro_reg) {
+        log_error "WSL distribution '$distro' not found."
+        return
+    }
+
+    $target_dir = $target_dir -replace '/', '\'
+    if ($target_dir -match '^[A-Za-z]:$') {
+        $target_dir = "$target_dir\"
+    } else {
+        $target_dir = [System.IO.Path]::GetFullPath($target_dir)
+        if ($target_dir -notmatch '^[A-Za-z]:\\$') {
+            $target_dir = $target_dir.TrimEnd('\')
+        }
+    }
+
+    $current_base = ($distro_reg.BasePath -replace '^\\\\\?\\', '')
+    if ($current_base -match '^[A-Za-z]:$') {
+        $current_base = "$current_base\"
+    } elseif ($current_base -notmatch '^[A-Za-z]:\\$') {
+        $current_base = $current_base.TrimEnd('\')
+    }
+
+    $vhd_name = if ($distro_reg.VhdFileName) { $distro_reg.VhdFileName } else { "ext4.vhdx" }
+    $src_vhdx = [System.IO.Path]::Combine($current_base, $vhd_name)
+    $dst_vhdx = [System.IO.Path]::Combine($target_dir, $vhd_name)
+
+    if ($current_base -ieq $target_dir) {
+        Set-ItemProperty -Path $distro_reg.PSPath -Name "BasePath" -Value $target_dir -ErrorAction SilentlyContinue
+        log_msg "Default WSL ('$distro') VHDX $src_vhdx is already located at $target_dir"
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $src_vhdx)) {
+        log_error "VHDX file not found at $src_vhdx"
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $target_dir)) {
+        New-Item -ItemType Directory -Path $target_dir -Force | Out-Null
+    }
+
+    log_msg "Moving default WSL ('$distro') VHDX: $src_vhdx -> $dst_vhdx"
+    log_msg "Shutting down WSL..."
+    wsl.exe --shutdown
+
+    $manage_target = $target_dir.TrimEnd('\')
+    wsl.exe --manage $distro --move "$manage_target"
+
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $dst_vhdx)) {
+        Move-Item -LiteralPath $src_vhdx -Destination $dst_vhdx -Force -ErrorAction Stop
+    }
+    Set-ItemProperty -Path $distro_reg.PSPath -Name "BasePath" -Value $target_dir -ErrorAction Stop
+
+    log_msg "Moved '$distro' VHDX to $dst_vhdx"
+}
+
+function wsl_start_if_wsl_folder {
+    if ($env:WSL_DISTRO_NAME) { return }
+    if ([Console]::IsInputRedirected -or ([Environment]::CommandLine -match '-(?:c|command|file|encodedcommand)\b' -and [Environment]::CommandLine -notmatch '-noexit\b')) {
+        return
+    }
+    $folder_path = (Get-Location).ProviderPath
+    if ($folder_path -and ($folder_path.StartsWith('~'))) {
+        $folder_path = $folder_path -replace '^~', $HOME
+    }
+    if (Test-Path -LiteralPath $folder_path) {
+        $resolved = (Resolve-Path -LiteralPath $folder_path).ProviderPath
+        if (Test-Path -LiteralPath $resolved -PathType Leaf) {
+            $folder_path = Split-Path -Parent $resolved
+        } else {
+            $folder_path = $resolved
+        }
+    }
+    if ($folder_path -match '^\\+wsl') {
+        wsl.exe --cd "$folder_path"
+    }
+}
+
+
+# -- links --
+
+function create_hlink {
+    param(
+        [Parameter(Mandatory)][string]$target_path,
+        [Parameter(Mandatory)][string]$source_path
+    )
+
+    $target_path = $target_path.TrimEnd('\').TrimEnd('/')
+    $source_path = $source_path.TrimEnd('\').TrimEnd('/')
+
+    if (-not (Test-Path $source_path)) {
+        log_error "Source path '$source_path' does not exist."
+        return
+    }
+
+    $target_dir = Split-Path $target_path -Parent
+    if ($target_dir -and -not (Test-Path $target_dir)) {
+        New-Item -ItemType Directory -Path $target_dir -Force | Out-Null
+    }
+
+    if (Test-Path $target_path) {
+        Remove-Item $target_path -Force -Recurse
+    }
+
+    try {
+        $item = New-Item -ItemType HardLink -Path $target_path -Value $source_path -Force -ErrorAction Stop
+        if ($item.LinkType -ne "HardLink") {
+            log_error "File at $target_path is not a hardlink"
+        }
+    } catch {
+        log_error "Failed to create hardlink at '$target_path': $_"
+    }
+}
+
+function create_slink {
+    param(
+        [Parameter(Mandatory)][string]$target_path,
+        [Parameter(Mandatory)][string]$source_path
+    )
+
+    $target_path = $target_path.TrimEnd('\').TrimEnd('/')
+    $source_path = $source_path.TrimEnd('\').TrimEnd('/')
+
+    if (-not (Test-Path $source_path)) {
+        log_error "Source path '$source_path' does not exist."
+        return
+    }
+
+    $target_dir = Split-Path $target_path -Parent
+    if ($target_dir -and -not (Test-Path $target_dir)) {
+        New-Item -ItemType Directory -Path $target_dir -Force | Out-Null
+    }
+
+    if (Test-Path $target_path) {
+        Remove-Item $target_path -Force -Recurse
+    }
+
+    try {
+        $item = New-Item -ItemType SymbolicLink -Path $target_path -Value $source_path -Force -ErrorAction Stop
+        if ($item.LinkType -ne "SymbolicLink") {
+            log_error "File at $target_path is not a symbolic link"
+        }
+    } catch {
+        log_error "Failed to create symbolic link at '$target_path': $_"
+    }
+}
+
+
+function create_junction {
+    param(
+        [Parameter(Mandatory)][string]$target_path,
+        [Parameter(Mandatory)][string]$source_path
+    )
+    $target_path = $target_path.TrimEnd('\').TrimEnd('/')
+    $source_path = $source_path.TrimEnd('\').TrimEnd('/')
+    if (-not (Test-Path $source_path -PathType Container)) {
+        log_error "Source path '$source_path' does not exist or is not a directory."
+        return
+    }
+    $target_dir = Split-Path $target_path -Parent
+    if ($target_dir -and -not (Test-Path $target_dir)) {
+        New-Item -ItemType Directory -Path $target_dir -Force | Out-Null
+    }
+    if (Test-Path $target_path) {
+        Remove-Item $target_path -Force -Recurse
+    }
+    try {
+        $item = New-Item -ItemType Junction -Path $target_path -Value $source_path -Force -ErrorAction Stop
+        if ($item.LinkType -ne "Junction" -and $item.LinkType -ne "SymbolicLink") {
+            log_error "Directory at $target_path is not a junction"
+        }
+    } catch {
+        log_error "Failed to create junction at '$target_path': $_"
+    }
+}
+
+function create_shortcut {
+    param(
+        [Parameter(Mandatory)][string]$target_path,
+        [Parameter(Mandatory)][string]$source_path
+    )
+    if (-not $target_path.EndsWith(".lnk")) {
+        $target_path += ".lnk"
+    }
+    if (-not (Test-Path $source_path) -and -not $source_path.StartsWith("\\")) {
+        log_error "Source path '$source_path' does not exist."
+        return
+    }
+    $target_dir = Split-Path $target_path -Parent
+    if ($target_dir -and -not (Test-Path $target_dir)) {
+        New-Item -ItemType Directory -Path $target_dir -Force | Out-Null
+    }
+    if (Test-Path $target_path) {
+        Remove-Item $target_path -Force -Recurse
+    }
+    try {
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($target_path)
+        $shortcut.TargetPath = $source_path
+        $shortcut.WorkingDirectory = $source_path
+        $shortcut.Description = "Shortcut to $source_path"
+        $shortcut.Save()
+    } catch {
+        log_error "Failed to create shortcut at '$target_path': $_"
+    }
+}
+
+
+# -- admin --
+
+function win_admin_enable_administrator() {
+    if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping"; return }
+    net user administrator /active:yes
+}
+
+function win_admin_disable_administrator() {
+    if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping"; return }
+    net user administrator /active:no
+}
+
+function win_admin_current_user_add {
+    if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping"; return }
+    $current_user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    net localgroup 'Administrators' $current_user /add
+}
+
+function win_admin_current_user_remove() {
+    if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping"; return }
+    $current_user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $raw = net localgroup 'Administrators'
+    $members = $raw |
+    ForEach-Object { $_.Trim() } |
+    Where-Object {
+        $_ -and
+        $_ -notmatch 'command completed successfully' -and
+        $_ -notmatch 'Alias name' -and
+        $_ -notmatch 'Comment' -and
+        $_ -notmatch 'Members' -and
+        $_ -notmatch '^-+$'
+    }
+    if ($members.Count -eq 1) {
+        Write-Host "There is only on admin Nothing to do."
+        return
+    }
+    net localgroup 'Administrators' $current_user /delete
+}
+
+function win_admin_enable_ssh() {
+    add-windows-capability -online -name openssh.server~~~~0.0.1.0
+    set-service -name sshd -startuptype automatic
+    start-service sshd
+}
+
+
+
+# -- install -- 
+
+function zip_download_extract() {
+    # Extracts an archive (downloading first if URL) directly into the target folder.
+    # Example: zip_download_extract "...\OBS.zip" "$env:LOCALAPPDATA\Programs\OBS"
+    param(
+        [Parameter(Mandatory = $true)][string]$url_or_path_to_zip,
+        [Parameter(Mandatory = $true)][string]$target_path
+    )
+    $zip_file_path = ""
+    if ($url_or_path_to_zip.StartsWith("http://") -or $url_or_path_to_zip.StartsWith("https://")) {
+        $url = New-Object System.Uri($url_or_path_to_zip)
+        $derived_zip_file_name = [System.IO.Path]::GetFileName($url.LocalPath)
+        $out_zip = Join-Path $env:TEMP $derived_zip_file_name
+        if (Test-Path $out_zip) {
+            log_msg "skip download and using existing $out_zip"
+        } else {
+            $web_client = New-Object System.Net.WebClient
+            $web_client.DownloadFile($url, $out_zip)
+            if (!(Test-Path $out_zip)) { log_error "download failed"; return }
+        }
+        $zip_file_path = $out_zip
+    } else {
+        $zip_file_path = $url_or_path_to_zip
+    }
+    if (!(Test-Path $target_path)) { New-Item -ItemType Directory -Path $target_path | Out-Null }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    try { 
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($zip_file_path, $target_path) 
+    } catch { log_error "extract failed"; return }
+}
+
+function github_latest_release_url($repo, $pattern = "*") {
+    $api_url = "https://api.github.com/repos/$repo/releases/latest"
+    $response = Invoke-RestMethod -Uri $api_url -Method Get -Headers @{ "Accept" = "application/vnd.github.v3+json" }
+    if (-not $response) { log_error "Download failed"; return }
+    $asset = $response.assets | Where-Object { $_.name -like $pattern -or $_.name -match $pattern } | Select-Object -First 1
+    if (-not $asset) { log_error "Asset not found"; return }
+    return $asset.browser_download_url
+}
+
+
+function win_install_docker() {
+    if (-not (ps_is_running_as_sudo)) { log_msg "not running as admin. skipping"; return }
+    $docker_cli = "$env:ProgramFiles\Docker\Docker\DockerCli.exe"
+    if (-not (Test-Path $docker_cli) -and -not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        $installer_url = "https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe"
+        $installer_path = Join-Path $env:TEMP "DockerDesktopInstaller.exe"
+        (New-Object System.Net.WebClient).DownloadFile($installer_url, $installer_path)
+        Start-Process -FilePath $installer_path -ArgumentList "install", "--quiet", "--accept-license", "--norestart" -Wait
+        Remove-Item -Force $installer_path -ErrorAction SilentlyContinue
+    }
+}
+
+function win_install_flutter() {
+    $flutter_path = "C:\flutter"
+    $flutter_bat = "$flutter_path\bin\flutter.bat"
+    $response = Invoke-RestMethod -Uri "https://storage.googleapis.com/flutter_infra_release/releases/releases_windows.json"
+    if (-not ($response)) { log_error "Download failed"; return }
+    $stable_hash = $response.current_release.stable
+    $stable_release = $response.releases | Where-Object { $_.hash -eq $stable_hash }
+    $latest_version = $stable_release.version
+    if (Test-Path $flutter_bat) {
+        $version_output = & $flutter_bat --version
+        $version_string = $version_output -join "`n"
+        if ($version_string -match "Flutter\s+(\d+\.\d+\.\d+)") {
+            $current_version = $Matches[1]
+            try {
+                if ([version]$current_version -ge [version]$latest_version) {
+                    return
+                }
+            } catch {}
+        }
+    }
+    $url = $response.base_url + '/' + $stable_release.archive
+    zip_download_extract $url (Split-Path -Path $flutter_path -Parent)
+    win_path_add "$flutter_path\bin"
+    win_assert_vcvars
+}
+
+function win_install_obs() {
+    $url = github_latest_release_url "obsproject/obs-studio" "*Windows-x64.zip"
+    if (-not $url) { return }
+    if ($url -match "OBS-Studio-(\d+\.\d+\.\d+(\.\d+)?)-Windows-x64") {
+        $latest_version = $Matches[1]
+        $obs_exe = "$env:LOCALAPPDATA\Programs\OBS\bin\64bit\obs64.exe"
+        if (Test-Path $obs_exe) {
+            $current_version_info = (Get-Item $obs_exe).VersionInfo.FileVersion
+            if ($current_version_info -match "(\d+\.\d+\.\d+(\.\d+)?)") {
+                $current_version = $Matches[1]
+                try {
+                    if ([version]$current_version -ge [version]$latest_version) {
+                        return
+                    }
+                } catch {}
+            }
+        }
+    }
+    zip_download_extract $url "$env:LOCALAPPDATA\Programs\OBS"
+    win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\OBS\bin\64bit\obs64.exe" OBS
+}
+
+function win_install_python_silent() {
+    winget_install Python.Python.3.13 --override "/passive PrependPath=1 Include_doc=0 Include_tcltk=0 Include_test=0 Include_pip=1 Include_launcher=0"
+}
+
+function win_install_latex() {
+    # install perl required by latexmk 
+    if (Test-Path "$env:LOCALAPPDATA\Programs\StrawberryPerl") { return; } 
+    $url = github_latest_release_url "StrawberryPerl/Perl-Dist-Strawberry" "^strawberry-perl-[\d\.]+-64bit-portable\.zip$"
+    if (-not $url) { return }
+    log_msg "download and extracting StrawberryPerl (~15min)"
+    zip_download_extract $url "$env:LOCALAPPDATA\Programs\StrawberryPerl"
+    log_msg "download and extracting finished"
+    win_path_add("$env:LOCALAPPDATA\Programs\StrawberryPerl\perl\bin")
+    # install miktex
+    winget_install MikTex.MikTex
+    win_path_reload
+    miktex packages update-package-database
+    miktex packages update
+}
+
+function win_install_tor() {
+    if (Test-Path "$env:LOCALAPPDATA\Programs\TorBrowser") { return; } # winget -q return false for TorBrowser
+    winget install TorProject.TorBrowser --location="$env:LOCALAPPDATA\Programs\TorBrowser" 
+    win_startmenu_add_lnk_to_allapps "$env:LOCALAPPDATA\Programs\TorBrowser\Browser\firefox.exe" TorBrowser
+}
+
+# -- env --
+
+function win_env_add($name, $value) {
+    [Environment]::SetEnvironmentVariable($name, $value, 'User')
+}
+
+function win_env_add_machine($name, $value) {
+    if (Test-IsNotAdmin) { log_error "no admin. skipping."; return }
+    [Environment]::SetEnvironmentVariable($name, $value, 'Machine')
+}
+
+function win_env_list() {
+    [Environment]::GetEnvironmentVariables()
+}
+
+# -- path --
+
+function win_path_cleanup() {
+    $path = [Environment]::GetEnvironmentVariable("Path", "User")
+    $filter = ($path -split ';' | Where-Object { Test-Path $_ }) -join ';'
+    [Environment]::SetEnvironmentVariable("Path", $filter, "User")
+    win_path_reload
+}
+
+function win_path_reload() {
+    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", [System.EnvironmentVariableTarget]::Machine) + ";" + [System.Environment]::GetEnvironmentVariable("PATH", [System.EnvironmentVariableTarget]::User)
+}
+
+function win_path_add($addPath) {
+    if (-not(Test-Path $addPath)) { log_error "'$addPath' is not a valid path."; return }
+    $path = [Environment]::GetEnvironmentVariable('path', 'User')
+    $regexAddPath = [regex]::Escape($addPath)
+    $arrPath = $path -split ';' | Where-Object { $_ -notMatch "^$regexAddPath\\?" }
+    $newpath = ($arrPath + $addPath) -join ';'
+    [Environment]::SetEnvironmentVariable("path", $newpath, 'User')
+    $env:path = [Environment]::GetEnvironmentVariable("path", "User") + ";" + [Environment]::GetEnvironmentVariable("path", "Machine")
+}
+
+function win_path_put_priority_folder($folder) {
+    if (-not(Test-Path $folder)) { log_error "'$folder' is not a valid path."; return }
+    $resolved = (Resolve-Path $folder -ErrorAction SilentlyContinue).ProviderPath
+    if (-not $resolved) { $resolved = $folder }
+
+    $path = [Environment]::GetEnvironmentVariable('path', 'User')
+    $currentFirst = ($path -split ';' | Where-Object { $_ } | Select-Object -First 1)
+    if (-not ($currentFirst -and $currentFirst.TrimEnd('\') -ieq $resolved.TrimEnd('\'))) {
+        $arrPath = @($path -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ine $resolved.TrimEnd('\') })
+        $newpath = (@($resolved) + $arrPath) -join ';'
+        [Environment]::SetEnvironmentVariable("path", $newpath, 'User')
+    }
+
+    $firstEnv = ($env:Path -split ';' | Where-Object { $_ } | Select-Object -First 1)
+    if (-not ($firstEnv -and $firstEnv.TrimEnd('\') -ieq $resolved.TrimEnd('\'))) {
+        $envArr = @($env:Path -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ine $resolved.TrimEnd('\') })
+        $env:Path = (@($resolved) + $envArr) -join ';'
+    }
+}
+
+function win_path_list() {
+    (Get-ChildItem Env:Path).Value -split ';'
+}
+
+# -- explorer --
+
+function explorer_restart() {
+    log_msg "explorer_restart"
+    taskkill /f /im explorer.exe *>$null
+    Start-Process explorer.exe
+}
+
+function explorer_reset_shell_folders {
+    $reg_path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+    $map = @{
+        Desktop   = "{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}"
+        Documents = "{FDD39AD0-238F-46AF-ADB4-6C85480369C7}"
+        Pictures  = "{33E28130-4E1E-4676-835A-98395C3BC3BB}"
+        Music     = "{4BD8D571-6D19-48D3-BE97-422220080E43}"
+        Videos    = "{18989B1D-99B5-455B-841C-AB7C74E4DDFC}"
+    }
+    foreach ($name in $map.Keys) {
+        $path = "$env:USERPROFILE\$name"
+        New-Item -ItemType Directory -Force -Path $path | Out-Null
+        Set-ItemProperty $reg_path $name $path
+        Set-ItemProperty $reg_path $map[$name] $path
+    }
+}
+
+
+function explorer_folder_use_pictures_icon {
+    param ([string]$FolderPath)
+    if (-Not (Test-Path $FolderPath)) {
+        log_error "The folder '$FolderPath' does not exist." -ForegroundColor Red
+        return
+    }
+    $DesktopIniPath = "$FolderPath\desktop.ini"
+    @"
+[.ShellClassInfo]
+IconResource=%SystemRoot%\system32\imageres.dll,-113
+IconFile=%SystemRoot%\system32\imageres.dll,-113
+IconIndex=0
+"@ | Set-Content -Path $DesktopIniPath -Encoding UTF8 -Force
+    attrib +r "$FolderPath" /s /d > $null
+    attrib +h "$DesktopIniPath" > $null
+    log_msg "Successfully set the icon for '$FolderPath' to match the Pictures folder."
+}
+
+function explorer_hide_home_dotfiles {
+    $paths = Get-ChildItem -LiteralPath $env:USERPROFILE -Force -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -like '.*' -or $_.Name -like '*.lock' } |
+    Select-Object -ExpandProperty FullName
+    $paths = $paths | Where-Object { Test-Path -LiteralPath $_ }
+    $hidden = [IO.FileAttributes]::Hidden
+    foreach ($p in $paths) {
+        $i = Get-Item -LiteralPath $p -Force
+        if (-not $i.Attributes.HasFlag($hidden)) { $i.Attributes = $i.Attributes -bor $hidden }
+    }
+}
+
+# -- office --
+
+function win_office_word_template_cleanup {
+    $app_data = [Environment]::GetFolderPath("ApplicationData")
+    $normal_path = "$app_data\Microsoft\Templates\Normal.dotm"
+    $word_process = Get-Process -Name "winword" -ErrorAction SilentlyContinue
+    if ($word_process) {
+        $word_process | Stop-Process -Force
+        Start-Sleep -Seconds 2
+    }
+    if (Test-Path $normal_path) {
+        Remove-Item $normal_path -Force
+    }
+}
+
+function win_word_doc_clean_comments_revisions_info {
+    param([Parameter(Mandatory)][string]$path)
+
+    $resolved_path = (Resolve-Path $path).Path
+    $word = New-Object -ComObject Word.Application
+    $word.Visible = $false
+    try {
+        $doc = $word.Documents.Open($resolved_path)
+        if ($doc.Comments.Count -gt 0) {
+            $doc.DeleteAllComments()
+        }
+        $doc.AcceptAllRevisions()
+        $doc.RemoveDocumentInformation(99)
+        $doc.RemovePersonalInformation = $false
+        $doc.Save()
+        $doc.Close()
+    } finally {
+        $word.Quit()
+        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($word) | Out-Null
+    }
+}
+
+function win_office_disable_zoom {
+    $paths = @(
+        "HKCU:\Software\Microsoft\Office\Outlook\Addins\ZoomOutlookAddIn",
+        "HKLM:\Software\Microsoft\Office\Outlook\Addins\ZoomOutlookAddIn",
+        "HKLM:\Software\WOW6432Node\Microsoft\Office\Outlook\Addins\ZoomOutlookAddIn"
+    )
+    foreach ($path in $paths) {
+        if (Test-Path $path) {
+            Set-ItemProperty -Path $path -Name "LoadBehavior" -Value 0
+        }
+    }    
+}
+
+# -- process --
+
+function win_process_stop_by_port($port_number) {
+    $target_connections = Get-NetTCPConnection -LocalPort $port_number -ErrorAction SilentlyContinue
+    if ($target_connections) {
+        $process_ids = $target_connections.OwningProcess | Where-Object { $_ -gt 0 } | Select-Object -Unique
+        foreach ($process_id in $process_ids) {
+            Stop-Process -Id $process_id -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+# -- system --
+
+function win_system_image_check() {
+    if (Test-IsNotAdmin) { log_error "no admin. skipping."; return }
+    cmd.exe /c 'sfc /scannow'
+    dism.exe /Online /Cleanup-image /Restorehealth    
+    dism /Online /Cleanup-Image /RestoreHealth
+}
+
+function win_system_policy_reset() {
+    if (Test-IsNotAdmin) { log_error "no admin. skipping."; return }
+    cmd.exe /C 'RD /S /Q %WinDir%\System32\GroupPolicyUsers '
+    cmd.exe /C 'RD /S /Q %WinDir%\System32\GroupPolicy '
+    gpupdate.exe /force
+}
+
+# -- ssh --
+
+function win_ssh_agent_enable() {
+    if (Test-IsNotAdmin) { log_error "no admin. skipping."; return }
+    Set-Service ssh-agent -StartupType Automatic
+    Start-Service ssh-agent
+    Get-Service ssh-agent
+    ssh-add "$env:USERPROFILE\\.ssh\\id_rsa"
+}
+
+function win_ssh_server_setup {
+    Get-WindowsCapability -Online -Name OpenSSH.Server* | Add-WindowsCapability -Online
+    Set-Service -Name sshd -StartupType Automatic
+    Start-Service -Name sshd
+}
+    
+function win_ssh_server_fix_config {
+    Stop-Service -Name sshd -ErrorAction SilentlyContinue
+    Remove-Item -Path "C:\ProgramData\ssh" -Recurse -Force -ErrorAction SilentlyContinue
+    & "C:\Windows\System32\OpenSSH\ssh-keygen.exe" -A
+    $config_path = "C:\ProgramData\ssh\sshd_config"
+    if (Test-Path $config_path) {
+        (Get-Content $config_path) | ForEach-Object {
+            if ($_ -match "^#?PasswordAuthentication") { "PasswordAuthentication yes" }
+            elseif ($_ -match "^#?PubkeyAuthentication") { "PubkeyAuthentication yes" }
+            elseif ($_ -match "Match Group administrators") { "# Match Group administrators" }
+            elseif ($_ -match "AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys") { "# AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys" }
+            else { $_ }
+        } | Set-Content $config_path
+    }
+    Restart-Service -Name sshd
+}
+
+# -- onedrive --
+
+function win_onedrive_make_folder_avaliable() {
+    param ([string]$Path = (Get-Location).Path)
+    log_msg "win_onedrive_make_folder_avaliable $Path"
+    $files = Get-ChildItem -Path $Path -File -Recurse -ErrorAction SilentlyContinue
+    foreach ($file in $files) {
+        # Check if the file is a reparse point (i.e., online-only OneDrive file)
+        if (($file.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq [System.IO.FileAttributes]::ReparsePoint) {
+            $fs = [System.IO.FileStream]::new($file.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+            $null = $fs.Read([byte[]]::new(1024), 0, 1024); $fs.Close(); $fs.Dispose()
+        }
+    }
+}
+
+function win_onedrive_ignore {
+    # https://zenn.dev/fjktkm/articles/97cc4677dc253a?locale=en#4.1.-procedure
+    param (
+        [Parameter(Mandatory = $true)][string]$source_path,
+        [switch]$no_restart
+    )
+    if (-not (Test-Path $source_path)) {
+        log_error "Source file '$source_path' does not exist."
+        return
+    }
+
+    $source_path = (Resolve-Path $source_path).Path
+    $settings_dir = "$env:LOCALAPPDATA\Microsoft\OneDrive\settings"
+    if (Test-Path $settings_dir) {
+        $target_dirs = Get-ChildItem -Path $settings_dir -Directory | Where-Object { $_.Name -match "^(Business\d*|Personal)$" }
+        foreach ($dir in $target_dirs) {
+            $link_path = Join-Path $dir.FullName "odignore.txt"
+            create_hlink $link_path $source_path
+        }
+    }
+
+    if (-not $no_restart) {
+        $od_exe = @(
+            "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe",
+            "$env:ProgramFiles\Microsoft OneDrive\OneDrive.exe",
+            "${env:ProgramFiles(x86)}\Microsoft OneDrive\OneDrive.exe"
+        ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+        if ($od_exe) {
+            if (Get-Process -Name OneDrive -ErrorAction SilentlyContinue) {
+                Start-Process $od_exe -ArgumentList "/shutdown" -Wait -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 2
+            }
+            Start-Process $od_exe -ArgumentList "/background"
+        }
+    }
+}
+
+
+# -- startmenu/desktop --
+
+function win_startmenu_reset {
+    Get-AppxPackage Microsoft.Windows.StartMenuExperienceHost | Reset-AppxPackage
+    Stop-Process -Name "StartMenuExperienceHost" -Force -ErrorAction SilentlyContinue 
+}
+
+function win_startmenu_add_lnk_to_allapps {
+    param (
+        [Parameter(Mandatory = $true)][string]$exePath,                # Path to the .exe file
+        [Parameter(Mandatory = $false)][string]$shortcutName           # Optional shortcut name
+    )
+    if (-not (Test-Path $exePath)) {
+        log_error "The specified executable path does not exist: $exePath"
+        return
+    }
+    if (-not $shortcutName) {
+        $shortcutName = [System.IO.Path]::GetFileNameWithoutExtension($exePath) + ".lnk"
+    } elseif (-not $shortcutName.EndsWith(".lnk")) {
+        $shortcutName += ".lnk"
+    }
+    $startMenuFolder = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs"
+    if (-not (Test-Path $startMenuFolder)) {
+        log_error "The Start Menu folder does not exist: $startMenuFolder"
+        return
+    }
+    $shortcutPath = Join-Path -Path $startMenuFolder -ChildPath $shortcutName
+    try {
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($shortcutPath)
+        $shortcut.TargetPath = $exePath
+        $shortcut.WorkingDirectory = (Split-Path -Parent $exePath)
+        $shortcut.Description = "Shortcut to $(Split-Path -Leaf $exePath)"
+        $shortcut.Save()
+        log_msg "Shortcut successfully created: $shortcutPath"
+    } catch {
+        log_error "An error occurred while creating the shortcut: $_"
+    }
+}
+
+function win_assert_vcvars() {
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    $vcvars = $null
+    if (Test-Path $vswhere) {
+        $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if ($vsPath) {
+            $vcvars = Join-Path $vsPath "VC\Auxiliary\Build\vcvars64.bat"
+        }
+    }
+    if (-not $vcvars -or -not (Test-Path $vcvars)) {
+        throw "MSVC compiler not found. Install with: winget install Microsoft.VisualStudio.2022.BuildTools --override `"--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended`""
+    }
+    return $vcvars
+}
+
+function _win_modern_context_menu_write_manifest {
+    param(
+        [Parameter(Mandatory = $true)][string]$shellExtDir,
+        [Parameter(Mandatory = $true)][string]$pkgDir
+    )
+    $verbFiles = Get-ChildItem -LiteralPath $pkgDir -Filter "*.json" -File -ErrorAction SilentlyContinue | Sort-Object Name
+    if (-not $verbFiles) {
+        return $false
+    }
+
+    $comClasses = @()
+    $verbsXml = @()
+    foreach ($vf in $verbFiles) {
+        $v = Get-Content -LiteralPath $vf.FullName -Raw | ConvertFrom-Json
+        $comClasses += "              <com:Class Id=`"$($v.clsid_str)`" Path=`"$($v.dll_name)`" ThreadingModel=`"STA`" />"
+        $verbsXml += "              <desktop5:Verb Id=`"$($v.verb_id)`" Clsid=`"$($v.clsid_str)`" />"
+    }
+
+    $manifestTmpl = Get-Content ([System.IO.Path]::Combine($shellExtDir, "AppxManifest.xml.j2")) -Raw
+    $manifestTmpl = $manifestTmpl.Replace('{{ com_classes }}', ($comClasses -join "`r`n"))
+    $manifestTmpl = $manifestTmpl.Replace('{{ directory_verbs }}', ($verbsXml -join "`r`n"))
+    $manifestTmpl = $manifestTmpl.Replace('{{ background_verbs }}', ($verbsXml -join "`r`n"))
+
+    Set-Content -Path ([System.IO.Path]::Combine($pkgDir, "AppxManifest.xml")) -Value $manifestTmpl -Encoding UTF8
+    return $true
+}
+
+function win_modern_context_menu_add {
+    param(
+        [Parameter(Mandatory = $true)][string]$name,
+        [Parameter(Mandatory = $true)][string]$title,
+        [Parameter(Mandatory = $true)][string]$ps_function,
+        [string]$icon = "powershell.exe,0"
+    )
+    $safeIdent = ($name -replace '[^a-zA-Z0-9]', '')
+    $packageName = "alanlivio.shell-profile-helpers"
+    $baseRepoDir = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } elseif ($global:SPH_DIR) { $global:SPH_DIR } else { Join-Path $HOME "src\shell-profile-helpers" }
+    $shellExtDir = [System.IO.Path]::Combine($baseRepoDir, "os\ShellExt")
+    $pkgDir = [System.IO.Path]::Combine($env:LOCALAPPDATA, "ShellProfileHelpers\ShellExt")
+    $verbJsonPath = [System.IO.Path]::Combine($pkgDir, "$safeIdent.json")
+    $dllName = "$safeIdent.dll"
+    $dllPath = [System.IO.Path]::Combine($pkgDir, $dllName)
+
+    $devMode = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" -Name "AllowDevelopmentWithoutDevLicense" -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense
+    if ($devMode -ne 1) {
+        log_error "Windows Developer Mode is required to register context menu extensions."
+        log_error "Enable Developer Mode in Settings -> System -> For developers, or run PowerShell as Administrator:"
+        log_error "reg add `"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock`" /t REG_DWORD /f /v `"AllowDevelopmentWithoutDevLicense`" /d `"1`""
+        return
+    }
+
+    if (-not (Test-Path $pkgDir)) {
+        New-Item -ItemType Directory -Path $pkgDir -Force | Out-Null
+    }
+
+    $helpersInit = [System.IO.Path]::Combine($baseRepoDir, "init.ps1")
+    $helpersInit = (Resolve-Path -LiteralPath $helpersInit).ProviderPath
+    $helpersInitEscaped = $helpersInit.Replace('\', '\\')
+
+    $md5Bytes = [System.Security.Cryptography.MD5]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes("shellprofilehelpers.$name"))
+    $guid = [Guid]::new($md5Bytes)
+    $clsid_str = $guid.ToString()
+    $b = $guid.ToByteArray()
+    $d1 = [BitConverter]::ToUInt32($b, 0)
+    $d2 = [BitConverter]::ToUInt16($b, 4)
+    $d3 = [BitConverter]::ToUInt16($b, 6)
+    $d4 = ($b[8..15] | ForEach-Object { '0x{0:x2}' -f $_ }) -join ', '
+    $clsid_struct = ('{{ 0x{0:x8}, 0x{1:x4}, 0x{2:x4}, {{ {3} }} }}' -f $d1, $d2, $d3, $d4)
+
+    $exeCandidate = ($icon -split ',')[0]
+    $fullExe = if (Test-Path $exeCandidate) { (Resolve-Path $exeCandidate).ProviderPath } else { (Get-Command $exeCandidate -ErrorAction SilentlyContinue).Source }
+    if (-not $fullExe) {
+        $fullExe = (Get-Command "powershell.exe" -ErrorAction SilentlyContinue).Source
+    }
+    $iconIndex = if ($icon -match ',(-?\d+)$') { $matches[1] } else { '0' }
+    $iconTarget = if ($fullExe) { "$fullExe,$iconIndex" } else { $icon }
+    $iconEscaped = $iconTarget.Replace('\', '\\')
+
+    $verbId = "${safeIdent}Command"
+    $map = @{
+        '{{ clsid_str }}'    = $clsid_str
+        '{{ clsid_struct }}' = $clsid_struct
+        '{{ title }}'        = $title
+        '{{ icon }}'         = $iconEscaped
+        '{{ ps_function }}'  = $ps_function
+        '{{ verb_id }}'      = $verbId
+        '{{ dll_name }}'     = $dllName
+        '{{ helpers_init }}' = $helpersInitEscaped
+    }
+
+    $cppTmpl = Get-Content ([System.IO.Path]::Combine($shellExtDir, "ShellProfileHelpersShellExt.cpp.j2")) -Raw
+    foreach ($k in $map.Keys) {
+        $cppTmpl = $cppTmpl.Replace($k, $map[$k])
+    }
+
+    $cppPath = [System.IO.Path]::Combine($pkgDir, "$safeIdent.cpp")
+    $defPath = [System.IO.Path]::Combine($pkgDir, "ShellExt.def")
+    Set-Content -Path $cppPath -Value $cppTmpl -Encoding UTF8
+    Copy-Item ([System.IO.Path]::Combine($shellExtDir, "ShellProfileHelpersShellExt.def")) $defPath -Force
+
+    $pkgLogo = [System.IO.Path]::Combine($pkgDir, "logo.png")
+    $repoIcon = [System.IO.Path]::Combine($baseRepoDir, "gui\resources\icon.png")
+    if ((Test-Path $repoIcon) -and -not (Test-Path $pkgLogo)) {
+        Copy-Item $repoIcon $pkgLogo -Force
+    }
+    if (-not (Test-Path $pkgLogo)) {
+        Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
+        if ($fullExe -and (Test-Path $fullExe)) {
+            try {
+                $extractedIcon = [System.Drawing.Icon]::ExtractAssociatedIcon($fullExe)
+                $bmp = $extractedIcon.ToBitmap()
+                $resized = New-Object System.Drawing.Bitmap 44, 44
+                $g = [System.Drawing.Graphics]::FromImage($resized)
+                $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+                $g.DrawImage($bmp, 0, 0, 44, 44)
+                $g.Dispose()
+                $resized.Save($pkgLogo, [System.Drawing.Imaging.ImageFormat]::Png)
+                $resized.Dispose()
+                $bmp.Dispose()
+                $extractedIcon.Dispose()
+            } catch {}
+        }
+        if (-not (Test-Path $pkgLogo)) {
+            $bmp = New-Object System.Drawing.Bitmap(44, 44)
+            $bmp.Save($pkgLogo, [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+        }
+    }
+
+    $allExisting = @()
+    $allExisting += @(Get-AppxPackage "CliHelpers.*" -ErrorAction SilentlyContinue)
+    $allExisting += @(Get-AppxPackage "alanlivio.cli-helpers" -ErrorAction SilentlyContinue)
+    $allExisting += @(Get-AppxPackage $packageName -ErrorAction SilentlyContinue)
+    if ($allExisting.Count -gt 0) {
+        $prev = $ProgressPreference
+        $ProgressPreference = 'SilentlyContinue'
+        explorer_restart
+        Start-Sleep -Milliseconds 500
+        foreach ($pkg in $allExisting) {
+            Remove-AppxPackage -Package $pkg.PackageFullName -ErrorAction SilentlyContinue
+        }
+        $ProgressPreference = $prev
+    }
+
+    foreach ($legacyRoot in @(
+        [System.IO.Path]::Combine($env:LOCALAPPDATA, "CliHelpers\pkg"),
+        [System.IO.Path]::Combine($env:LOCALAPPDATA, "CliHelpers\ShellExt")
+    )) {
+        if (Test-Path $legacyRoot) {
+            Remove-Item $legacyRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    $vcvars = win_assert_vcvars
+    $launcherC = [System.IO.Path]::Combine($shellExtDir, "launcher.c")
+    $launcherExe = [System.IO.Path]::Combine($pkgDir, "launcher.exe")
+
+    if ((Test-Path $launcherC) -and -not (Test-Path $launcherExe)) {
+        $launcherOutput = cmd /c "`"$vcvars`" && cd /d `"$pkgDir`" && cl /nologo /O2 `"$launcherC`" /Fe:`"$launcherExe`" /Fo:`"$pkgDir\\`" /link /SUBSYSTEM:WINDOWS" 2>&1
+        if (-not (Test-Path $launcherExe)) {
+            log_error "Compilation failed for $launcherExe"
+            $launcherOutput | ForEach-Object { log_error $_ }
+            return
+        }
+    }
+
+    $compileOutput = cmd /c "`"$vcvars`" && cd /d `"$pkgDir`" && cl /nologo /O2 /MT /LD `"$cppPath`" /Fe:`"$dllPath`" /Fo:`"$pkgDir\\`" /link /DEF:`"$defPath`" /MACHINE:X64" 2>&1
+    if (-not (Test-Path $dllPath)) {
+        log_error "Compilation failed for $dllPath"
+        $compileOutput | ForEach-Object { log_error $_ }
+        return
+    }
+
+    Remove-Item ([System.IO.Path]::Combine($pkgDir, "*.obj")), ([System.IO.Path]::Combine($pkgDir, "*.lib")), ([System.IO.Path]::Combine($pkgDir, "*.exp")), $cppPath -Force -ErrorAction SilentlyContinue
+
+    $verbMeta = @{
+        name        = $name
+        safe_ident  = $safeIdent
+        title       = $title
+        clsid_str   = $clsid_str
+        verb_id     = $verbId
+        dll_name    = $dllName
+        ps_function = $ps_function
+    }
+    $verbMeta | ConvertTo-Json | Set-Content -Path $verbJsonPath -Encoding UTF8
+
+    [void](_win_modern_context_menu_write_manifest -shellExtDir $shellExtDir -pkgDir $pkgDir)
+
+    $manifestPath = [System.IO.Path]::Combine($pkgDir, "AppxManifest.xml")
+    $prev = $ProgressPreference
+    $ProgressPreference = 'SilentlyContinue'
+    try {
+        Add-AppxPackage -Path (Resolve-Path -LiteralPath $manifestPath).ProviderPath -Register -ErrorAction Stop
+    } catch {
+        log_error "Failed to register Appx package: $_"
+        log_error "Ensure Developer Mode is enabled: reg add `"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock`" /t REG_DWORD /f /v `"AllowDevelopmentWithoutDevLicense`" /d `"1`""
+        $ProgressPreference = $prev
+        return
+    }
+    $ProgressPreference = $prev
+    explorer_restart
+}
+
+function win_modern_context_menu_remove {
+    param(
+        [Parameter(Mandatory = $true)][string]$name
+    )
+    $safeIdent = ($name -replace '[^a-zA-Z0-9]', '')
+    $packageName = "alanlivio.shell-profile-helpers"
+    $baseRepoDir = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } elseif ($global:SPH_DIR) { $global:SPH_DIR } else { Join-Path $HOME "src\shell-profile-helpers" }
+    $shellExtDir = [System.IO.Path]::Combine($baseRepoDir, "os\ShellExt")
+    $pkgDir = [System.IO.Path]::Combine($env:LOCALAPPDATA, "ShellProfileHelpers\ShellExt")
+
+    $pkgsToRemove = @()
+    $pkgsToRemove += @(Get-AppxPackage "CliHelpers.*" -ErrorAction SilentlyContinue)
+    $pkgsToRemove += @(Get-AppxPackage "alanlivio.cli-helpers" -ErrorAction SilentlyContinue)
+    $pkgsToRemove += @(Get-AppxPackage $packageName -ErrorAction SilentlyContinue)
+
+    if ($pkgsToRemove.Count -gt 0) {
+        $prev = $ProgressPreference
+        $ProgressPreference = 'SilentlyContinue'
+        explorer_restart
+        Start-Sleep -Milliseconds 500
+        foreach ($p in $pkgsToRemove) {
+            Remove-AppxPackage -Package $p.PackageFullName -ErrorAction SilentlyContinue
+        }
+        $ProgressPreference = $prev
+    }
+
+    foreach ($legacyDir in @(
+        [System.IO.Path]::Combine($env:LOCALAPPDATA, "CliHelpers\pkg\$name"),
+        [System.IO.Path]::Combine($env:LOCALAPPDATA, "CliHelpers\ShellExt")
+    )) {
+        if (Test-Path $legacyDir) {
+            Remove-Item $legacyDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    if (Test-Path $pkgDir) {
+        Remove-Item ([System.IO.Path]::Combine($pkgDir, "$safeIdent.json")), ([System.IO.Path]::Combine($pkgDir, "$safeIdent.dll")) -Force -ErrorAction SilentlyContinue
+        if (_win_modern_context_menu_write_manifest -shellExtDir $shellExtDir -pkgDir $pkgDir) {
+            $manifestPath = [System.IO.Path]::Combine($pkgDir, "AppxManifest.xml")
+            $prev = $ProgressPreference
+            $ProgressPreference = 'SilentlyContinue'
+            Add-AppxPackage -Path (Resolve-Path -LiteralPath $manifestPath).ProviderPath -Register -ErrorAction SilentlyContinue
+            $ProgressPreference = $prev
+        } else {
+            Remove-Item $pkgDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    explorer_restart
+}
+
+# -- my_declutter --
+
+function win_declutter_all() {
+    win_declutter_ui
+    win_declutter_home_folders
+    win_declutter_osapps
+    win_declutter_3_and_4_fingers_gestures
+    win_declutter_unused_keyboard_shortcuts
+    win_declutter_bell_sounds
+    win_declutter_explorer_listing_files
+    win_declutter_web_search_and_widgets
+    win_declutter_taskbar_startmenu
+    win_declutter_xbox
+    explorer_restart
+}
+
+
+function win_declutter_ui() {
+    log_msg "win_declutter_ui"
+    $personalize_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+    $accent_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent"
+    $advanced_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+    $taskbar_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings"
+    
+    # dark enabled and transparent disabled
+    Set-ItemProperty -Path $personalize_key -Name "AppsUseLightTheme" -Value 0 -Type Dword -Force 
+    Set-ItemProperty -Path $personalize_key -Name "SystemUsesLightTheme" -Value 0 -Type Dword -Force 
+    Set-ItemProperty -Path $personalize_key -Name "EnableTransparency" -Value 0 -Type Dword -Force 
+    Set-ItemProperty -Path $personalize_key -Name "ColorPrevalence" -Value 0 -Type Dword -Force 
+    
+    # gray accent color
+    $accent_palette = "cc,cc,cc,00,ae,ae,ae,00,92,92,92,00,76,76,76,00,4f,4f,4f,00,37,37,37,00,26,26,26,00,d1,34,38,00"
+    $hexified = $accent_palette.Split(',') | ForEach-Object { "0x$_" }
+    Set-ItemProperty -Path $accent_key -Name "AccentPalette" -Value ([byte[]]$hexified) -Type Binary
+    Set-ItemProperty -Path $accent_key -Name "AccentColor" -Value 0xff000000 -Type Dword -Force
+    Set-ItemProperty -Path $accent_key -Name "AccentColorMenu" -Value 0xff767676 -Type Dword -Force
+    Set-ItemProperty -Path $accent_key -Name "StartColorMenu" -Value 0xff4f4f4f -Type Dword -Force
+    
+    # hide desktop icons
+    Set-ItemProperty -Path $advanced_key -Name "HideIcons" -Value 1
+    if (-not (Test-Path $taskbar_key)) { New-Item -Path $taskbar_key -Force | Out-Null }
+    Set-ItemProperty -Path $taskbar_key -Name "TaskbarEndTask" -Value 1 -Force
+    
+    # simple taskbar and multitasking
+    Set-ItemProperty -Path $advanced_key -Name TaskbarAl -Value 1 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name TaskbarBadges -Value 0 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name MMTaskbarEnabled -Value 1 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name MMTaskbarMode -Value 2 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name TaskbarShareWindow -Value 1 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name "MultiTaskingAltTabFilter" -Value 3 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "SnapAssist" -Value 0 -Type Dword
+}
+
+function win_declutter_home_folders() {
+    $paths = @(
+        "$env:USERPROFILE\Cookies"
+        "$env:USERPROFILE\Local Settings"
+        "$env:USERPROFILE\My Documents"
+        "$env:USERPROFILE\Start Menu"
+        "$env:USERPROFILE\PrintHood"
+        "$env:USERPROFILE\Recent"
+        "$env:USERPROFILE\SendTo"
+        "$env:USERPROFILE\NetHood"
+        "$env:USERPROFILE\Templates"
+    )
+    $paths | ForEach-Object { 
+        if (Test-Path "$_") {
+            Remove-Item $_
+        }
+    }
+}
+
+function win_declutter_osapps() {
+    log_msg "win_declutter_osapps"
+    winget_uninstall 9WZDNCRFJ3Q2 # Weather
+    winget_uninstall 9WZDNCRFJ3PZ # Company Portal
+    winget_uninstall 9P6PMZTM93LR # Defender
+    winget_uninstall 9PDJDJS743XF # Family
+    winget_uninstall 9WZDNCRD29V9 # Microsoft 365 Copilot
+    winget_uninstall 9WZDNCRFHVQM # Mail and Calendar
+    winget_uninstall 9NZBF4GT040C # Microsoft Bing
+    winget_uninstall 9NBLGGH4QGHW # Sticky Notes
+    winget_uninstall 9P1J8S7CCWWT # Clipchamp
+    winget_uninstall 9N318R854RHH # Journal
+    winget_uninstall Microsoft.MicrosoftSolitaireCollection
+    winget_uninstall 9NZKPSTSNW4P # Game Bar
+    winget_uninstall 9WZDNCRFHVFW # News
+    winget_uninstall Microsoft.WindowsMaps
+    winget_uninstall 9WZDNCRFJ3P2 # Films & TV
+    winget_uninstall 9NFTCH6J7FHV # Power Automate
+    winget_uninstall 9NMPJ99VJBWV # Phone Link
+    winget_uninstall 9MSSGKG348SP # Windows Web Experience Pack
+    winget_uninstall 9WZDNCRFHWKN # Sound Recorder
+    winget_uninstall 9NTXGKQ8P7N0 # Cross Device Experience Host
+}
+
+function win_declutter_3_and_4_fingers_gestures() {
+    log_msg "win_declutter_3_and_4_fingers_gestures"
+    $reg = "HKCU:\Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad"
+    Set-ItemProperty -Path $reg -Name "FourFingerDown" -Value 0 -Type Dword
+    Set-ItemProperty -Path $reg -Name "FourFingerLeft" -Value 0 -Type Dword
+    Set-ItemProperty -Path $reg -Name "FourFingerRight" -Value 0 -Type Dword
+    Set-ItemProperty -Path $reg -Name "FourFingerUp" -Value 0 -Type Dword
+    Set-ItemProperty -Path $reg -Name "FourFingerTapEnabled" -Value 0 -Type Dword
+    Set-ItemProperty -Path $reg -Name "ThreeFingerDown" -Value 0 -Type Dword
+    Set-ItemProperty -Path $reg -Name "ThreeFingerLeft" -Value 0 -Type Dword
+    Set-ItemProperty -Path $reg -Name "ThreeFingerRight" -Value 0 -Type Dword
+    Set-ItemProperty -Path $reg -Name "ThreeFingerTapEnabled" -Value 0 -Type Dword
+    Set-ItemProperty -Path $reg -Name "ThreeFingerUp" -Value 0 -Type Dword
+}
+
+function win_declutter_unused_keyboard_shortcuts() {
+    log_msg "win_declutter_unused_keyboard_shortcuts"
+    $advanced_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+    $access_key = "HKCU:\Control Panel\Accessibility"
+    $toggle_key = "HKCU:\Keyboard Layout\Toggle"
+    $igf_key = "HKCU:\Software\Intel\Display\Igfxcui"
+    $narrator_key = "HKCU:\Software\Microsoft\Narrator"
+    $narrator_cp_key = "HKCU:\Control Panel\Accessibility\Narrator"
+    
+    # "disable win+v shortcut"
+    $value_name = "DisabledHotkeys"
+    $key_to_disable = "V"
+    $current = (Get-ItemProperty -Path $advanced_key -Name $value_name -ErrorAction SilentlyContinue).$value_name
+    $new_value = $current
+    if ($null -eq $new_value -or $new_value -notlike "*$key_to_disable*") {
+        $new_value = ($new_value | Out-String).Trim() + $key_to_disable
+        Set-ItemProperty -Path $advanced_key -Name $value_name -Value $new_value
+    }
+    
+    # "disable AutoRotation shortcuts"
+    if (-not (Test-Path $igf_key)) { New-Item -Path $igf_key -Force | Out-Null }
+    Set-ItemProperty -Path $igf_key -Name "HotKeys" -Value 'Disable'
+
+    # "disable language shortcuts"
+    Set-ItemProperty -Path $toggle_key -Name "HotKey" -Value '3' -Type String
+    Set-ItemProperty -Path $toggle_key -Name "Language Hotkey" -Value '3' -Type String
+    Set-ItemProperty -Path $toggle_key -Name "Layout Hotkey" -Value '3' -Type String
+
+    # "disable acessibility shortcuts"
+    if (-not (Test-Path $access_key)) { New-Item -Path $access_key -Force | Out-Null }
+    if (-not (Test-Path "$access_key\ToggleKeys")) { New-Item -Path "$access_key\ToggleKeys" -Force | Out-Null }
+    if (-not (Test-Path "$access_key\StickyKeys")) { New-Item -Path "$access_key\StickyKeys" -Force | Out-Null }
+    if (-not (Test-Path "$access_key\Keyboard Response")) { New-Item -Path "$access_key\Keyboard Response" -Force | Out-Null }
+    Set-ItemProperty -Path "$access_key\ToggleKeys" -Name "Flags" -Value '58' -Type String
+    Set-ItemProperty -Path "$access_key\StickyKeys" -Name "Flags" -Value '26' -Type String
+    Set-ItemProperty -Path "$access_key\Keyboard Response" -Name "Flags" -Value '122' -Type String
+    if (-not (Test-Path $narrator_key)) { New-Item -Path $narrator_key -Force | Out-Null }
+    Set-ItemProperty -Path $narrator_key -Name "NarratorRunning" -Value 0 -Type DWord
+    Set-ItemProperty -Path $narrator_key -Name "StartNarratorHotkey" -Value 0 -Type DWord 
+    Set-ItemProperty -Path $narrator_key -Name "Autostart" -Value 0 -Type DWord 
+    if (-not (Test-Path $narrator_cp_key)) { New-Item -Path $narrator_cp_key -Force | Out-Null }
+    Set-ItemProperty -Path $narrator_cp_key -Name "WinEnterLaunchEnabled" -Value 0 -Type DWord 
+}
+
+function win_declutter_bell_sounds() {
+    log_msg "win_declutter_bell_sounds"
+    Set-ItemProperty -Path "HKCU:\AppEvents\Schemes\" "(Default)" -Value ".None"
+    Get-ChildItem -Path 'HKCU:\AppEvents\Schemes\Apps' | Get-ChildItem | Get-ChildItem | Where-Object { $_.PSChildName -eq '.Current' } | Set-ItemProperty -Name '(Default)' -Value '' 
+}
+
+function win_declutter_web_search_and_widgets() {
+    log_msg "win_declutter_web_search_and_widgets"
+    winget_uninstall 9PC1H9VN18CM # start experiences
+    $search_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
+    $search_settings_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\SearchSettings"
+    if (-not (Test-Path $search_key)) { New-Item -Path $search_key -Force | Out-Null }
+    if (-not (Test-Path $search_settings_key)) { New-Item -Path $search_settings_key -Force | Out-Null }
+    Set-ItemProperty -Path $search_key -Name "BingSearchEnabled" -Value 0 -Type DWord
+    Set-ItemProperty -Path $search_settings_key -Name "IsDeviceSearchHistoryEnabled" -Value 0 -Type DWord
+    Set-ItemProperty -Path $search_settings_key -Name "IsDynamicSearchBoxEnabled" -Value 0 -Type DWord
+    Set-ItemProperty -Path $search_settings_key -Name "IsMSACloudSearchEnabled" -Value 0 -Type DWord
+    Set-ItemProperty -Path $search_settings_key -Name "IsAADCloudSearchEnabled" -Value 0 -Type DWord
+}
+
+function win_declutter_explorer_listing_files() {
+    log_msg "win_declutter_explorer_listing_files"
+    $explorer_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer"
+    $advanced_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+    $shell_key = 'HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell' 
+    
+    Set-ItemProperty -Path $explorer_key -Name "ShowFrequent" -Value 0 -Type Dword
+    Set-ItemProperty -Path $explorer_key -Name "ShowRecent" -Value 0 -Type Dword
+    Set-ItemProperty -Path $explorer_key -Name "ShowRecommendations" -Value 0 -Type Dword
+    Set-ItemProperty -Path $explorer_key -Name "HideFileExt" -Value 0 -Type Dword
+    Set-ItemProperty -Path $explorer_key -Name "DisableGraphRecentItems" -Value 1 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "ShowAccountBasedInsights" -Value 0 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "Start_TrackDocs" -Value 0 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "Start_TrackDocsInJumpLists" -Value 0 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "ShowRecommendedFiles" -Value 0 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "LaunchTo" -Value 1 -Type Dword # This PC
+
+    # disable grouping
+    # https://answers.microsoft.com/en-us/windows/forum/all/completely-disable-file-grouping-always-everywhere/ac31a227-f585-4b0a-ab2e-a557828eaec5
+    Remove-Item -Path "$shell_key\BagMRU"  -Force -ErrorAction SilentlyContinue
+}
+
+function win_declutter_taskbar_startmenu() {
+    log_msg "win_declutter_taskbar_startmenu"
+    $start_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Start"
+    $advanced_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+    $search_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
+    $pen_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\PenWorkspace"
+    $touch_key = "HKCU:\Software\Microsoft\TabletTip\1.7"
+    $bluetooth_key = "HKCU:\Control Panel\Bluetooth"
+    
+    # taskbar
+    Set-ItemProperty -Path $advanced_key -Name "ShowTaskViewButton" -Value 0 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "TaskbarMn" -Value 0 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "ShowCopilotButton" -Value 0 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "UseCompactMode" -Value 1 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "ShowStatusBar" -Value 1 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "TaskbarFlashing" -Value 0 -Type Dword
+    Set-ItemProperty -Path $advanced_key -Name "TaskbarAnimations" -Value 0 -Type Dword
+    Set-ItemProperty -Path $pen_key -Name "PenWorkspaceButtonDesiredVisibility" -Type DWord -Value 0 -Force | Out-Null
+    Set-ItemProperty -Path $touch_key -Name "TipbandDesiredVisibility" -Type DWord -Value 0 -Force | Out-Null
+    if (-not (Test-Path $bluetooth_key)) { New-Item -Path $bluetooth_key -Force | Out-Null }
+    Set-ItemProperty -Path $bluetooth_key -Name "Notification Area Icon" -Value 0 -Type DWord | Out-Null
+    
+    # taskbar search
+    $search_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
+    Set-ItemProperty -Path $search_key -Name "SearchboxTaskbarMode" -Type DWord -Value 0 -Force | Out-Null
+    Set-ItemProperty -Path $search_key -Name "SearchboxTaskbarModeCache" -Type DWord -Value 0 -Force | Out-Null
+    
+    # startmenu
+    Set-ItemProperty -Path $start_key -Name "ShowRecentList" -Value 0 -Type DWord
+    Set-ItemProperty -Path $start_key -Name "AllAppsViewMode" -Value 2 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name "Start_TrackProgs" -Value 0 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name "Start_TrackDocs" -Value 0 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name "Start_IrisRecommendations" -Value 0 -Type DWord
+    Set-ItemProperty -Path $advanced_key -Name "Start_AccountNotifications" -Type DWord -Value 0
+}
+
+function win_declutter_xbox() {
+    log_msg "win_declutter_xbox"
+    $game_dvr_key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR"
+    $game_store_key = "HKCU:\System\GameConfigStore"
+
+    Set-ItemProperty -Path $game_dvr_key -Name "AppCaptureEnabled" -Value 0 -Type Dword
+    Set-ItemProperty -Path $game_dvr_key -Name "HistoricalCaptureEnabled" -Value 0 -Type Dword
+    Set-ItemProperty -Path $game_store_key -Name "GameDVR_Enabled" -Value 0 -Type Dword
+    winget_uninstall 9MV0B5HZVK9Z
+    winget_uninstall "Xbox Game Bar Plugin" 
+    winget_uninstall "Xbox TCUI" 
+    winget_uninstall "Xbox Identity Provider" 
+    winget_uninstall "Microsoft Edge Game Assist" 
+    winget_uninstall Microsoft.XboxSpeechToTextOverlay_8wekyb3d8bbwe
+}
+
+function ps_coreutils_aliases() {
+    if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows) -and (Get-Command ls.exe -ErrorAction SilentlyContinue)) {
+        Set-Alias -Name curl -Value curl.exe -Scope Global -Option AllScope -Force
+        foreach ($cmd in @('ls', 'cp', 'echo', 'pwd', 'mv', 'cat', 'rm', 'sort')) {
+            Set-Alias -Name $cmd -Value "$cmd.exe" -Scope Global -Option AllScope -Force
+        }
+    }
+}
+
+function ps_prompt_with_slash() {
+    if (-not [Environment]::UserInteractive) { return }
+    function Global:prompt() {
+        $rawPath = $pwd.Path -replace '^[^\:]+::', ''
+        if ($rawPath -match '^\\+wsl') { 
+            # let \\wsl.localhost\Ubuntu\home\...
+            $path = $rawPath 
+        } else {
+            # use slash and ~
+            $path = ($rawPath -replace ('^' + [regex]::Escape($HOME)), '~').Replace('\', '/')
+            if ($path -match '^([A-Za-z]):(.*)') {
+                $path = '/' + $matches[1] + $matches[2]
+            }
+        }
+        return ("{0}[32m{1}@{2}{0}[0m:{0}[34m{3}{0}[0m`n> " -f [char]27, $env:USERNAME, $env:COMPUTERNAME, $path)
+    }
+}
+
+function ps_expansion_with_slash() {
+    if (-not [Environment]::UserInteractive) { return }
+    if (Get-Command Set-PSReadLineOption -ErrorAction SilentlyContinue) {
+        Set-PSReadLineOption -BellStyle None
+        Set-PSReadLineKeyHandler -Key Tab -Function MenuComplete
+    }
+    if ($env:OS -ne 'Windows_NT') { return };
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
+    $global:PSUseSlash = $true
+    function global:TabExpansion2 {
+        [CmdletBinding(DefaultParameterSetName = 'ScriptInputSet')]
+        Param(
+            [Parameter(ParameterSetName = 'ScriptInputSet', Mandatory = $true, Position = 0)]
+            [string] $inputScript,
+            [Parameter(ParameterSetName = 'ScriptInputSet', Position = 1)]
+            [int] $cursorColumn = $inputScript.Length,
+            [Parameter(ParameterSetName = 'AstInputSet', Mandatory = $true, Position = 0)]
+            [System.Management.Automation.Language.Ast] $ast,
+            [Parameter(ParameterSetName = 'AstInputSet', Mandatory = $true, Position = 1)]
+            [System.Management.Automation.Language.Token[]] $tokens,
+            [Parameter(ParameterSetName = 'AstInputSet', Mandatory = $true, Position = 2)]
+            [System.Management.Automation.Language.IScriptPosition] $positionOfCursor,
+            [Parameter(ParameterSetName = 'ScriptInputSet', Position = 2)]
+            [Parameter(ParameterSetName = 'AstInputSet', Position = 3)]
+            [Hashtable] $options = $null
+        )
+        End {
+            $completions = if ($psCmdlet.ParameterSetName -eq 'ScriptInputSet') {
+                [System.Management.Automation.CommandCompletion]::CompleteInput($inputScript, $cursorColumn, $options)
+            } else {
+                [System.Management.Automation.CommandCompletion]::CompleteInput($ast, $tokens, $positionOfCursor, $options)
+            }
+            if ($global:PSUseSlash -or (Get-Variable -ea Ignore -Scope 1 -ValueOnly PSUseSlash)) {
+                for ($i = 0; $i -lt $completions.CompletionMatches.Count; ++$i) {
+                    $cm = $completions.CompletionMatches[$i]
+                    if ($cm.ResultType -notin 'ProviderItem', 'ProviderContainer') { continue }
+                    $completions.CompletionMatches[$i] = [System.Management.Automation.CompletionResult]::new(
+                        $cm.CompletionText.Replace('\', '/'),
+                        $cm.ListItemText,
+                        $cm.ResultType,
+                        $cm.ToolTip.Replace('\', '/')
+                    )
+                }
+            }
+            $completions
+        }
+    }
+    function global:Convert-Path {
+        [CmdletBinding(DefaultParameterSetName = 'Path', HelpUri = 'https://go.microsoft.com/fwlink/?LinkID=2096588', RemotingCapability = 'None')]
+        param(
+            [Parameter(ParameterSetName = 'Path', Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+            [string[]]
+            ${Path},
+            [Parameter(ParameterSetName = 'LiteralPath', Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
+            [Alias('PSPath', 'LP')]
+            [string[]]
+            ${LiteralPath},
+            [Alias('sl')] [switch] $UseSlash
+        )
+        begin {
+            if ($PSBoundParameters.ContainsKey('UseSlash')) { 
+                $null = $PSBoundParameters.Remove('UseSlash') 
+            } elseif ($global:PSUseSlash -or (Get-Variable -ea Ignore -ValueOnly PSUseSlash) -or (Get-Variable -ea Ignore -Scope 1 -ValueOnly PSUseSlash)) {
+                $UseSlash = $true
+            }
+            if ($env:OS -ne 'Windows_NT') { $UseSlash = $false }
+            $wrappedCmd = $ExecutionContext.InvokeCommand.GetCommand('Microsoft.PowerShell.Management\Convert-Path', 'Cmdlet')
+            $scriptCmd = if ($UseSlash) {
+                { & $wrappedCmd @PSBoundParameters | ForEach-Object { $_.Replace('\', '/') } }
+            } else {
+                { & $wrappedCmd @PSBoundParameters }
+            }
+            $steppablePipeline = $scriptCmd.GetSteppablePipeline($myInvocation.CommandOrigin)
+            $steppablePipeline.Begin($PSCmdlet)
+        }
+        process {
+            try {
+                $null = $steppablePipeline.Process($_)
+            } catch {
+                $PSCmdlet.ThrowTerminatingError($_)
+            }
+        }
+        end { try { $steppablePipeline.End() } catch { $PSCmdlet.ThrowTerminatingError($_) } }
+    }
+    function global:Join-Path {
+        [CmdletBinding(HelpUri = 'https://go.microsoft.com/fwlink/?LinkID=2096811')]
+        param(
+            [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+            [Alias('PSPath')]
+            [string[]]
+            ${Path},
+            [Parameter(Mandatory = $true, Position = 1, ValueFromPipelineByPropertyName = $true)]
+            [AllowEmptyString()]
+            [AllowNull()]
+            [string]
+            ${ChildPath},
+            [Parameter(Position = 2, ValueFromPipelineByPropertyName = $true, ValueFromRemainingArguments = $true)]
+            [AllowNull()]
+            [AllowEmptyString()]
+            [AllowEmptyCollection()]
+            [string[]]
+            ${AdditionalChildPath},
+            [switch]
+            ${Resolve},
+            [Parameter(ValueFromPipelineByPropertyName = $true)]
+            [pscredential]
+            [System.Management.Automation.CredentialAttribute()]
+            ${Credential},
+            [Alias('sl')] [switch] $UseSlash
+        )
+        begin {
+            try {
+                if ($PSBoundParameters.ContainsKey('UseSlash')) { 
+                    $null = $PSBoundParameters.Remove('UseSlash') 
+                } elseif ($global:PSUseSlash -or (Get-Variable -ea Ignore -ValueOnly PSUseSlash) -or (Get-Variable -ea Ignore -Scope 1 -ValueOnly PSUseSlash)) {
+                    $UseSlash = $true
+                }
+                if ($env:OS -ne 'Windows_NT') { $UseSlash = $false }
+                $wrappedCmd = $ExecutionContext.InvokeCommand.GetCommand('Microsoft.PowerShell.Management\Join-Path', 'Cmdlet')
+                $scriptCmd = if ($UseSlash) {
+                    { & $wrappedCmd @PSBoundParameters | ForEach-Object { $_.Replace('\', '/') } }
+                } else {
+                    { & $wrappedCmd @PSBoundParameters }
+                }
+                $steppablePipeline = $scriptCmd.GetSteppablePipeline($myInvocation.CommandOrigin)
+                $steppablePipeline.Begin($PSCmdlet)
+            } catch {
+                $PSCmdlet.ThrowTerminatingError($_)
+            }
+        }
+        process {
+            try {
+                $null = $steppablePipeline.Process($_)
+            } catch {
+                $PSCmdlet.ThrowTerminatingError($_)
+            }
+        }
+        end { try { $steppablePipeline.End() } catch { $PSCmdlet.ThrowTerminatingError($_) } }
+    }
+    function global:Split-Path {
+        [CmdletBinding(DefaultParameterSetName = 'ParentSet', SupportsTransactions = $true, HelpUri = 'https://go.microsoft.com/fwlink/?LinkID=113404')]
+        param(
+            [Parameter(ParameterSetName = 'NoQualifierSet', Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+            [Parameter(ParameterSetName = 'LeafSet', Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+            [Parameter(ParameterSetName = 'QualifierSet', Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+            [Parameter(ParameterSetName = 'ParentSet', Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+            [Parameter(ParameterSetName = 'IsAbsoluteSet', Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+            [string[]]
+            ${Path},
+            [Parameter(ParameterSetName = 'LiteralPathSet', Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
+            [Alias('PSPath')]
+            [string[]]
+            ${LiteralPath},
+            [Parameter(ParameterSetName = 'QualifierSet', Position = 1, ValueFromPipelineByPropertyName = $true)]
+            [switch]
+            ${Qualifier},
+            [Parameter(ParameterSetName = 'NoQualifierSet', ValueFromPipelineByPropertyName = $true)]
+            [switch]
+            ${NoQualifier},
+            [Parameter(ParameterSetName = 'ParentSet', ValueFromPipelineByPropertyName = $true)]
+            [switch]
+            ${Parent},
+            [Parameter(ParameterSetName = 'LeafSet', ValueFromPipelineByPropertyName = $true)]
+            [switch]
+            ${Leaf},
+            [switch]
+            ${Resolve},
+            [Parameter(ParameterSetName = 'IsAbsoluteSet')]
+            [switch]
+            ${IsAbsolute},
+            [Parameter(ValueFromPipelineByPropertyName = $true)]
+            [pscredential]
+            [System.Management.Automation.CredentialAttribute()]
+            ${Credential},
+            [Alias('sl')] [switch] $UseSlash
+        )
+        begin {
+            try {
+                if ($PSBoundParameters.ContainsKey('UseSlash')) { 
+                    $null = $PSBoundParameters.Remove('UseSlash') 
+                } elseif ($global:PSUseSlash -or (Get-Variable -ea Ignore -ValueOnly PSUseSlash) -or (Get-Variable -ea Ignore -Scope 1 -ValueOnly PSUseSlash)) {
+                    $UseSlash = $true
+                }
+                if ($env:OS -ne 'Windows_NT') { $UseSlash = $false }
+                $wrappedCmd = $ExecutionContext.InvokeCommand.GetCommand('Microsoft.PowerShell.Management\Split-Path', 'Cmdlet')
+                $scriptCmd = if ($UseSlash -and -not $IsAbsolute) {
+                    { & $wrappedCmd @PSBoundParameters | ForEach-Object { $_.Replace('\', '/') } }
+                } else {
+                    { & $wrappedCmd @PSBoundParameters }
+                }
+                $steppablePipeline = $scriptCmd.GetSteppablePipeline($myInvocation.CommandOrigin)
+                $steppablePipeline.Begin($PSCmdlet)
+            } catch {
+                $PSCmdlet.ThrowTerminatingError($_)
+            }
+        }
+        process {
+            try {
+                $null = $steppablePipeline.Process($_)
+            } catch {
+                $PSCmdlet.ThrowTerminatingError($_)
+            }
+        }
+        end { try { $steppablePipeline.End() } catch { $PSCmdlet.ThrowTerminatingError($_) } }
+    }
+}
+
+function ps_install_readline() {
+    if (-not (Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue)) {
+        Install-PackageProvider -Name NuGet -Scope CurrentUser -Force | Out-Null
+    }
+    if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+    }
+    $installed = Get-Module -ListAvailable PSReadLine | Sort-Object Version -Descending | Select-Object -First 1
+    $latest = Find-Module -Name PSReadLine
+    if (-not $installed -or $installed.Version -lt [version]$latest.Version) {
+        Install-Module -Name PSReadLine -Scope CurrentUser -Force -SkipPublisherCheck
+    }
+}
+
+function ps_expansion_for_makefiles() {
+    if (-not [Environment]::UserInteractive) { return }
+    if (Get-Command get_make_targets -ErrorAction SilentlyContinue) { return }
+    function global:get_make_targets {
+        param($word_to_complete, $command_ast, $cursor_position)
+        $makefile_path = get-item -path "Makefile", "makefile" -erroraction silentlycontinue | select-object -first 1
+        if (-not $makefile_path) { return }
+        $targets = select-string -path $makefile_path.fullname -pattern '^[a-zA-Z0-9_\.-]+:' | foreach-object {
+            ($_.line -split ':')[0].trim()
+        } | where-object { $_ -notmatch '^\.' }
+        $targets | where-object { $_ -like "$word_to_complete*" } | foreach-object {
+            [system.management.automation.completionresult]::new($_, $_, 'parametervalue', $_)
+        }
+    }
+    register-argumentcompleter -commandname make -native -scriptblock $function:get_make_targets
+}
+
+function ps_execution_policy() {
+    if ((Get-ExecutionPolicy -Scope CurrentUser) -eq 'RemoteSigned') { return }
+    set-executionpolicy -executionpolicy remotesigned -scope currentuser -force
+}
+
+function ps_aliases_python_scripts($folder) {
+    if (-not (Test-Path $folder)) { return }
+    Get-ChildItem -Path (Join-Path $folder "*.py") -File -ErrorAction SilentlyContinue | ForEach-Object {
+        $script_path = $_.FullName.Replace("'", "''")
+        $name = $_.BaseName
+        Set-Item -Path "Function:\global:_bin_$name" -Value ([ScriptBlock]::Create("& python '$script_path' @args"))
+        foreach ($alias in (@($name, ($name -replace '_', '-'), ($name -replace '-', '_')) | Select-Object -Unique)) {
+            Set-Alias -Name $alias -Value "_bin_$name" -Scope Global -Option AllScope -Force
+        }
+    }
+}
