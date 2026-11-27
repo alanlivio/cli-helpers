@@ -12,6 +12,8 @@ from PySide6.QtCore import QThread, Signal
 
 from .version import __version__
 
+ALLOWED_MY_HELPERS = ("my_declutter", "my_dotfiles", "my_software")
+
 
 def _parse_version_tuple(ver_str):
     cleaned = re.sub(r"^v", "", (ver_str or "").strip(), flags=re.IGNORECASE)
@@ -189,20 +191,13 @@ class ExeUpdateWorker(QThread):
 
 class HelperWorker(QThread):
     output_line = Signal(str)
-    output_message = Signal(str)
-    helpers_loaded = Signal(list)
-    tasks_loaded = helpers_loaded
     finished = Signal(int)
 
-    def __init__(
-        self, command, args, cwd=None, parse_helpers=False, parse_tasks=False
-    ):
+    def __init__(self, command, args, cwd=None):
         super().__init__()
         self.command = command
         self.args = args
         self.cwd = cwd
-        self.parse_helpers = parse_helpers or parse_tasks
-        self.parse_tasks = self.parse_helpers
         self.process = None
         self._killed = False
 
@@ -245,20 +240,13 @@ class HelperWorker(QThread):
                 bufsize=1,
                 creationflags=creation_flags,
             )
-            collected_helpers = []
             if self.process.stdout:
                 try:
                     for line in iter(self.process.stdout.readline, ""):
                         if self._killed:
                             break
                         if line:
-                            trimmed = line.rstrip("\r\n")
-                            if self.parse_helpers:
-                                stripped = trimmed.strip()
-                                if stripped:
-                                    collected_helpers.append(stripped)
-                            else:
-                                self.output_line.emit(trimmed)
+                            self.output_line.emit(line.rstrip("\r\n"))
                 except Exception:
                     pass
                 finally:
@@ -272,169 +260,79 @@ class HelperWorker(QThread):
                 ret = -1
             if self._killed:
                 return
-            if self.parse_helpers:
-                self.helpers_loaded.emit(collected_helpers)
             self.finished.emit(ret)
         except Exception as e:
             if self._killed:
                 return
-            if self.parse_helpers:
-                self.output_message.emit(f"Helper discovery error: {e}")
-                self.helpers_loaded.emit([])
-            else:
-                self.output_line.emit(f"Process error: {e}")
+            self.output_line.emit(f"Process error: {e}")
             self.finished.emit(-1)
 
 
-class HelperDiscoveryWorker(HelperWorker):
-    def __init__(
-        self,
-        shell_exe=None,
-        script_command=None,
-        helpers_path=None,
-        dotfiles_path=None,
-        powershell_exe=None,
-    ):
-        target_shell = shell_exe or powershell_exe
-        shell_cmd, shell_type = self._detect_shell(target_shell)
+def _default_helpers_path():
+    user_profile = str(Path.home())
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        base_dir,
+        os.path.join(user_profile, "src", "cli-helpers"),
+        os.path.join(user_profile, "src", "dotfiles", "cli-helpers"),
+        os.path.abspath(os.path.join(base_dir, "..")),
+        os.path.abspath(os.path.join(base_dir, "..", "..")),
+    ]
+    for p in candidates:
+        if os.path.isdir(p) and (
+            os.path.isfile(os.path.join(p, "init.ps1"))
+            or os.path.isfile(os.path.join(p, "init.sh"))
+        ):
+            return p
+    return None
 
-        if script_command is not None:
-            if shell_type == "bash" and (
-                "Get-Command" in script_command or "Test-Path" in script_command
-            ):
-                script_command = None
-            elif shell_type == "powershell" and "compgen" in script_command:
-                script_command = None
 
-        if script_command is None:
-            script_command = self._build_discovery_script(
-                shell_type, helpers_path, dotfiles_path
-            )
+def _default_dotfiles_path():
+    user_profile = str(Path.home())
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(user_profile, "src", "dotfiles"),
+        os.path.abspath(os.path.join(base_dir, "..")),
+        os.path.abspath(os.path.join(base_dir, "..", "..")),
+        os.path.abspath(os.path.join(base_dir, "..", "..", "..")),
+    ]
+    for p in candidates:
+        if os.path.isdir(p) and (
+            os.path.isfile(os.path.join(p, "init.ps1"))
+            or os.path.isfile(os.path.join(p, "init.sh"))
+        ):
+            return p
+    return None
 
-        if shell_type == "bash":
-            args = ["-c", script_command]
-        else:
-            escaped_cmd = script_command.replace('"', '`"')
-            args = [
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                escaped_cmd,
-            ]
 
-        super().__init__(shell_cmd, args, parse_helpers=True)
-        self.shell_cmd = shell_cmd
-        self.shell_type = shell_type
-
-    @staticmethod
-    def _default_helpers_path():
-        user_profile = str(Path.home())
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        candidates = [
-            base_dir,
-            os.path.join(user_profile, "src", "cli-helpers"),
-            os.path.join(user_profile, "src", "dotfiles", "cli-helpers"),
-            os.path.abspath(os.path.join(base_dir, "..")),
-            os.path.abspath(os.path.join(base_dir, "..", "..")),
-        ]
-        for p in candidates:
-            if os.path.isdir(p) and (
-                os.path.isfile(os.path.join(p, "init.ps1"))
-                or os.path.isfile(os.path.join(p, "init.sh"))
-            ):
-                return p
-        return None
-
-    @staticmethod
-    def _default_dotfiles_path():
-        user_profile = str(Path.home())
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        candidates = [
-            os.path.join(user_profile, "src", "dotfiles"),
-            os.path.abspath(os.path.join(base_dir, "..")),
-            os.path.abspath(os.path.join(base_dir, "..", "..")),
-            os.path.abspath(os.path.join(base_dir, "..", "..", "..")),
-        ]
-        for p in candidates:
-            if os.path.isdir(p) and (
-                os.path.isfile(os.path.join(p, "init.ps1"))
-                or os.path.isfile(os.path.join(p, "init.sh"))
-            ):
-                return p
-        return None
-
-    @staticmethod
-    def _detect_shell(shell_exe=None):
-        if shell_exe:
-            if (
-                sys.platform != "win32"
-                and shell_exe.lower().endswith(".exe")
-                and not shutil.which(shell_exe)
-            ):
-                bash = shutil.which("bash") or "/bin/bash" or "bash"
-                return bash, "bash"
-            base = os.path.basename(shell_exe).lower()
-            if "bash" in base or base in ("sh", "zsh"):
-                return shell_exe, "bash"
-            if "powershell" in base or "pwsh" in base:
-                return shell_exe, "powershell"
-            if sys.platform != "win32":
-                return shell_exe, "bash"
-            return shell_exe, "powershell"
-
-        if sys.platform != "win32":
+def _detect_shell(shell_exe=None):
+    if shell_exe:
+        if (
+            sys.platform != "win32"
+            and shell_exe.lower().endswith(".exe")
+            and not shutil.which(shell_exe)
+        ):
             bash = shutil.which("bash") or "/bin/bash" or "bash"
             return bash, "bash"
+        base = os.path.basename(shell_exe).lower()
+        if "bash" in base or base in ("sh", "zsh"):
+            return shell_exe, "bash"
+        if "powershell" in base or "pwsh" in base:
+            return shell_exe, "powershell"
+        if sys.platform != "win32":
+            return shell_exe, "bash"
+        return shell_exe, "powershell"
 
-        ps = (
-            shutil.which("pwsh.exe")
-            or shutil.which("powershell.exe")
-            or "powershell.exe"
-        )
-        return ps, "powershell"
+    if sys.platform != "win32":
+        bash = shutil.which("bash") or "/bin/bash" or "bash"
+        return bash, "bash"
 
-    @classmethod
-    def _build_discovery_script(
-        cls, shell_type, helpers_path=None, dotfiles_path=None
-    ):
-        if helpers_path is None:
-            helpers_path = cls._default_helpers_path()
-        if dotfiles_path is None:
-            dotfiles_path = cls._default_dotfiles_path()
-
-        if shell_type == "bash":
-            parts = []
-            if helpers_path:
-                init_sh = os.path.join(helpers_path, "init.sh")
-                if os.path.isfile(init_sh):
-                    parts.append(f'[ -f "{init_sh}" ] && . "{init_sh}";')
-            if dotfiles_path:
-                init_sh = os.path.join(dotfiles_path, "init.sh")
-                if os.path.isfile(init_sh):
-                    parts.append(f'[ -f "{init_sh}" ] && . "{init_sh}";')
-            parts.append(
-                "compgen -A function -A alias | grep -E '^(win_|ubu_|my_)' | sort -u"
-            )
-            return " ".join(parts)
-        else:
-            parts = []
-            if helpers_path:
-                init_ps1 = os.path.join(helpers_path, "init.ps1")
-                if os.path.isfile(init_ps1):
-                    parts.append(
-                        f"if (Test-Path '{init_ps1}') {{ . '{init_ps1}' }};"
-                    )
-            if dotfiles_path:
-                init_ps1 = os.path.join(dotfiles_path, "init.ps1")
-                if os.path.isfile(init_ps1):
-                    parts.append(
-                        f"if (Test-Path '{init_ps1}') {{ . '{init_ps1}' }};"
-                    )
-            parts.append(
-                "Get-Command -CommandType Function, Alias | Where-Object { $_.Name -match '^(win_|ubu_|my_)' } | Select-Object -ExpandProperty Name | Sort-Object -Unique"
-            )
-            return " ".join(parts)
+    ps = (
+        shutil.which("pwsh.exe")
+        or shutil.which("powershell.exe")
+        or "powershell.exe"
+    )
+    return ps, "powershell"
 
 
 def build_helper_command(
@@ -443,11 +341,14 @@ def build_helper_command(
     helpers_path=None,
     dotfiles_path=None,
 ):
-    shell_cmd, shell_type = HelperDiscoveryWorker._detect_shell(shell_exe)
+    if helper_name not in ALLOWED_MY_HELPERS:
+        raise ValueError(f"Helper is not allowed: {helper_name}")
+
+    shell_cmd, shell_type = _detect_shell(shell_exe)
     if helpers_path is None:
-        helpers_path = HelperDiscoveryWorker._default_helpers_path()
+        helpers_path = _default_helpers_path()
     if dotfiles_path is None:
-        dotfiles_path = HelperDiscoveryWorker._default_dotfiles_path()
+        dotfiles_path = _default_dotfiles_path()
 
     if shell_type == "bash":
         parts = []
@@ -776,8 +677,8 @@ class StatusCheckWorker(QThread):
 
 
 __all__ = [
+    "ALLOWED_MY_HELPERS",
     "HelperWorker",
-    "HelperDiscoveryWorker",
     "StatusCheckWorker",
     "ExeUpdateWorker",
     "build_helper_command",

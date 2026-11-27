@@ -146,20 +146,6 @@ class CaptionLabel(QLabel):
         pass
 
 
-class ComboBox(fluentqt.ComboBox):
-    def addItem(self, *args, **kwargs):
-        was_empty = self.count() == 0
-        super().addItem(*args, **kwargs)
-        if was_empty and self.count() > 0 and self.currentIndex() == -1:
-            self.setCurrentIndex(0)
-
-    def addItems(self, *args, **kwargs):
-        was_empty = self.count() == 0
-        super().addItems(*args, **kwargs)
-        if was_empty and self.count() > 0 and self.currentIndex() == -1:
-            self.setCurrentIndex(0)
-
-
 class LineEdit(fluentqt.LineEdit):
     pass
 
@@ -286,8 +272,8 @@ qInstallMessageHandler(_qt_message_handler)
 
 from .version import __version__
 from .workers import (
+    ALLOWED_MY_HELPERS,
     HelperWorker,
-    HelperDiscoveryWorker,
     StatusCheckWorker,
     ExeUpdateWorker,
     build_helper_command,
@@ -405,11 +391,12 @@ class MainWindow(fluentqt.Window):
 
         self._active_worker = None
         self._status_worker = None
-        self._helper_worker = None
-        self._task_worker = None
         self._exe_update_worker = None
         self._exe_download_url = ""
         self._cached_ps_exe = None
+        self._helpers_ready = bool(
+            self.get_cli_helpers_path() or self.get_dotfiles_path()
+        )
 
         setTheme(Theme.DARK)
         self.setWindowTitle("CLI Helpers")
@@ -585,11 +572,8 @@ class MainWindow(fluentqt.Window):
 
         setup_header = QHBoxLayout()
         self.setup_title = SubtitleLabel("Setup")
-        self.btn_refresh_all = PushButton("Refresh All", self, FluentIcon.SYNC)
-        self.btn_refresh_all.clicked.connect(self.refresh_all)
         setup_header.addWidget(self.setup_title)
         setup_header.addStretch()
-        setup_header.addWidget(self.btn_refresh_all)
         setup_layout.addLayout(setup_header)
 
         app_row = QHBoxLayout()
@@ -695,44 +679,31 @@ class MainWindow(fluentqt.Window):
         tasks_layout.setSpacing(10)
 
         tasks_header = QHBoxLayout()
-        self.tasks_title = SubtitleLabel("Run")
-        self.btn_reload_tasks = PushButton("Reload Tasks", self, FluentIcon.SYNC)
-        self.btn_reload_tasks.clicked.connect(self.initialize_tasks)
+        self.tasks_title = SubtitleLabel("My helpers")
         tasks_header.addWidget(self.tasks_title)
         tasks_header.addStretch()
-        tasks_header.addWidget(self.btn_reload_tasks)
         tasks_layout.addLayout(tasks_header)
 
         my_row = QHBoxLayout()
-        my_label = BodyLabel("My helpers:")
-        my_label.setFixedWidth(100)
-        self.my_task_selector = ComboBox()
-        self.my_task_selector.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        my_row.setSpacing(10)
+        self.btn_my_declutter = PushButton("my_declutter", self, FluentIcon.PLAY)
+        self.btn_my_dotfiles = PushButton("my_dotfiles", self, FluentIcon.PLAY)
+        self.btn_my_software = PushButton("my_software", self, FluentIcon.PLAY)
+        self.my_helper_buttons = (
+            self.btn_my_declutter,
+            self.btn_my_dotfiles,
+            self.btn_my_software,
         )
-        self.my_task_selector.setPlaceholderText("No my_ helpers found")
-        self.btn_run_my_task = PushButton("Run", self, FluentIcon.PLAY)
-        self.btn_run_my_task.setFixedWidth(135)
-        self.btn_run_my_task.clicked.connect(self.run_my_task)
-        my_row.addWidget(my_label)
-        my_row.addWidget(self.my_task_selector)
-        my_row.addWidget(self.btn_run_my_task)
+        for btn in self.my_helper_buttons:
+            btn.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            )
+            btn.setEnabled(self._helpers_ready)
+            my_row.addWidget(btn)
+        self.btn_my_declutter.clicked.connect(self.run_my_declutter)
+        self.btn_my_dotfiles.clicked.connect(self.run_my_dotfiles)
+        self.btn_my_software.clicked.connect(self.run_my_software)
         tasks_layout.addLayout(my_row)
-
-        task_selector_row = QHBoxLayout()
-        task_label = BodyLabel("All tasks:")
-        task_label.setFixedWidth(100)
-        self.task_selector = ComboBox()
-        self.task_selector.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-        self.btn_run_task = PushButton("Run Task", self, FluentIcon.PLAY)
-        self.btn_run_task.setFixedWidth(135)
-        self.btn_run_task.clicked.connect(self.run_task)
-        task_selector_row.addWidget(task_label)
-        task_selector_row.addWidget(self.task_selector)
-        task_selector_row.addWidget(self.btn_run_task)
-        tasks_layout.addLayout(task_selector_row)
 
         content_layout.addWidget(tasks_card)
 
@@ -813,9 +784,7 @@ class MainWindow(fluentqt.Window):
         else:
             self.progress_bar.stop()
 
-        self.btn_refresh_all.setEnabled(not busy)
         self.btn_update_exe.setEnabled(not busy and bool(self._exe_download_url))
-        self.btn_reload_tasks.setEnabled(not busy)
         self.btn_install_winget.setEnabled(
             not busy and self.winget_badge.text() == "Not installed"
         )
@@ -833,8 +802,8 @@ class MainWindow(fluentqt.Window):
             and is_git_installed
             and self.btn_clone_dotfiles.text() != "Updated"
         )
-        self.btn_run_task.setEnabled(not busy and self.task_selector.count() > 0)
-        self.btn_run_my_task.setEnabled(not busy and self.my_task_selector.count() > 0)
+        for btn in self.my_helper_buttons:
+            btn.setEnabled(not busy and self._helpers_ready)
 
         if status:
             self.status_label.setText(status)
@@ -1054,48 +1023,19 @@ class MainWindow(fluentqt.Window):
             self.btn_update_exe.setText("Updated")
             self.btn_update_exe.setEnabled(False)
 
-    def initialize_tasks(self):
-        self.set_busy(True, "Loading profile tasks...")
-        helpers_path = self.get_cli_helpers_path()
-        dotfiles_path = self.get_dotfiles_path()
-        shell_exe = self.get_shell_executable()
-        self._helper_worker = HelperDiscoveryWorker(
-            shell_exe=shell_exe,
-            helpers_path=helpers_path,
-            dotfiles_path=dotfiles_path,
+        self._helpers_ready = bool(
+            info.get("helpers_installed") or info.get("dotfiles_installed")
         )
-        self._task_worker = self._helper_worker
-        self._helper_worker.helpers_loaded.connect(self._on_tasks_loaded)
-        self._helper_worker.output_message.connect(self.add_output)
-        self._helper_worker.start()
-
-    def _on_tasks_loaded(self, tasks):
-        self.task_selector.clear()
-        if tasks:
-            self.task_selector.addItems(tasks)
-            self.task_selector.setCurrentIndex(0)
-            self.btn_run_task.setEnabled(True)
-        else:
-            self.btn_run_task.setEnabled(False)
-
-        my_tasks = [t for t in tasks if t.startswith("my_")]
-        self.my_task_selector.clear()
-        if my_tasks:
-            self.my_task_selector.addItems(my_tasks)
-            self.my_task_selector.setCurrentIndex(0)
-            self.btn_run_my_task.setEnabled(True)
-        else:
-            self.btn_run_my_task.setEnabled(False)
-
-        self.add_output(
-            f"Loaded {len(tasks)} profile tasks ({len(my_tasks)} my_ helpers)."
+        worker_busy = bool(
+            (self._active_worker and self._active_worker.isRunning())
+            or (self._exe_update_worker and self._exe_update_worker.isRunning())
         )
-        self.set_busy(False, "Ready")
+        if not worker_busy:
+            self.set_busy(False, "Ready")
 
     def refresh_all(self):
-        self.set_busy(True, "Refreshing status and tasks...")
+        self.set_busy(True, "Refreshing status...")
         self.update_setup_status()
-        self.initialize_tasks()
 
     def run_worker_command(
         self,
@@ -1310,16 +1250,20 @@ class MainWindow(fluentqt.Window):
                 on_success_msg=f"dotfiles cloned at {target_dir}",
             )
 
-    def run_task(self):
-        selected_task = self.task_selector.currentText().strip()
-        self.execute_task(selected_task)
+    def run_my_declutter(self):
+        self.execute_task("my_declutter")
 
-    def run_my_task(self):
-        selected_task = self.my_task_selector.currentText().strip()
-        self.execute_task(selected_task)
+    def run_my_dotfiles(self):
+        self.execute_task("my_dotfiles")
+
+    def run_my_software(self):
+        self.execute_task("my_software")
 
     def execute_task(self, selected_task):
         if not selected_task:
+            return
+        if selected_task not in ALLOWED_MY_HELPERS:
+            self.add_output(f"Helper is disabled: {selected_task}")
             return
 
         self.add_output(f">>> Running {selected_task}...")
@@ -1353,8 +1297,6 @@ class MainWindow(fluentqt.Window):
         for worker in [
             self._active_worker,
             self._status_worker,
-            self._helper_worker,
-            self._task_worker,
             self._exe_update_worker,
         ]:
             if worker and worker.isRunning():

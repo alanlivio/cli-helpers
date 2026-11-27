@@ -13,10 +13,10 @@ if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
 from cli_helpers.gui import (
+    ALLOWED_MY_HELPERS,
     MainWindow,
     HelperWorker,
     StatusCheckWorker,
-    HelperDiscoveryWorker,
     build_helper_command,
     InfoLevel,
     INSTALL_GIT,
@@ -37,8 +37,7 @@ class TestGui(unittest.TestCase):
         for worker in [
             getattr(self.window, "_active_worker", None),
             getattr(self.window, "_status_worker", None),
-            getattr(self.window, "_helper_worker", None),
-            getattr(self.window, "_task_worker", None),
+            getattr(self.window, "_exe_update_worker", None),
         ]:
             if worker and worker.isRunning():
                 worker.wait(100)
@@ -48,8 +47,15 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.windowTitle(), "CLI Helpers")
         self.assertEqual(self.window.title_bar.titleLabel.text(), "CLI Helpers")
         self.assertEqual(self.window.setup_title.text(), "Setup")
-        self.assertEqual(self.window.tasks_title.text(), "Run")
+        self.assertEqual(self.window.tasks_title.text(), "My helpers")
         self.assertEqual(self.window.output_title.text(), "Output log")
+        self.assertEqual(self.window.btn_my_declutter.text(), "my_declutter")
+        self.assertEqual(self.window.btn_my_dotfiles.text(), "my_dotfiles")
+        self.assertEqual(self.window.btn_my_software.text(), "my_software")
+        self.assertFalse(hasattr(self.window, "btn_refresh_all"))
+        self.assertFalse(hasattr(self.window, "task_selector"))
+        self.assertFalse(hasattr(self.window, "my_task_selector"))
+        self.assertFalse(hasattr(self.window, "btn_reload_tasks"))
         self.assertEqual(self.window.winget_label.text(), "WinGet:")
         self.assertEqual(self.window.btn_install_winget.text(), "Install WinGet")
         self.assertEqual(self.window.helpers_label.text(), "~/src/cli-helpers:")
@@ -86,18 +92,20 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.output_box.toPlainText().strip(), "")
 
     def test_set_busy_state(self):
+        self.window._helpers_ready = True
         self.window.set_busy(True, "Working...")
         self.assertEqual(self.window.status_label.text(), "Working...")
-        self.assertFalse(self.window.btn_refresh_all.isEnabled())
-        self.assertFalse(self.window.btn_reload_tasks.isEnabled())
         self.assertFalse(self.window.btn_install_winget.isEnabled())
         self.assertFalse(self.window.btn_install_git.isEnabled())
-        self.assertFalse(self.window.btn_run_my_task.isEnabled())
+        self.assertFalse(self.window.btn_my_declutter.isEnabled())
+        self.assertFalse(self.window.btn_my_dotfiles.isEnabled())
+        self.assertFalse(self.window.btn_my_software.isEnabled())
 
         self.window.set_busy(False, "Done")
         self.assertEqual(self.window.status_label.text(), "Done")
-        self.assertTrue(self.window.btn_refresh_all.isEnabled())
-        self.assertTrue(self.window.btn_reload_tasks.isEnabled())
+        self.assertTrue(self.window.btn_my_declutter.isEnabled())
+        self.assertTrue(self.window.btn_my_dotfiles.isEnabled())
+        self.assertTrue(self.window.btn_my_software.isEnabled())
 
     def test_status_ready_callback(self):
         mock_info = {
@@ -168,36 +176,32 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.window.btn_clone_dotfiles.text(), "Clone dotfiles")
         self.assertFalse(self.window.btn_install_helpers.isEnabled())
         self.assertFalse(self.window.btn_clone_dotfiles.isEnabled())
+        self.assertFalse(self.window.btn_my_declutter.isEnabled())
+        self.assertFalse(self.window.btn_my_dotfiles.isEnabled())
+        self.assertFalse(self.window.btn_my_software.isEnabled())
 
-    def test_tasks_loaded_callback(self):
-        tasks = ["win_task_a", "ubu_task_b", "my_task_c"]
-        self.window._on_tasks_loaded(tasks)
-        self.assertEqual(self.window.task_selector.count(), 3)
-        self.assertEqual(self.window.task_selector.itemText(0), "win_task_a")
-        self.assertTrue(self.window.btn_run_task.isEnabled())
-
-        self.assertEqual(self.window.my_task_selector.count(), 1)
-        self.assertEqual(self.window.my_task_selector.itemText(0), "my_task_c")
-        self.assertTrue(self.window.btn_run_my_task.isEnabled())
-
-        self.window._on_tasks_loaded([])
-        self.assertEqual(self.window.task_selector.count(), 0)
-        self.assertFalse(self.window.btn_run_task.isEnabled())
-        self.assertEqual(self.window.my_task_selector.count(), 0)
-        self.assertFalse(self.window.btn_run_my_task.isEnabled())
-
-    def test_run_methods_delegation(self):
+    def test_my_helper_buttons_delegation_and_restriction(self):
+        self.assertEqual(
+            ALLOWED_MY_HELPERS, ("my_declutter", "my_dotfiles", "my_software")
+        )
         executed = []
         with patch.object(
             self.window, "execute_task", side_effect=executed.append
         ):
-            self.window.task_selector.addItem("win_test")
-            self.window.run_task()
-            self.assertEqual(executed, ["win_test"])
+            self.window.btn_my_declutter.click()
+            self.window.btn_my_dotfiles.click()
+            self.window.btn_my_software.click()
+            self.assertEqual(
+                executed, ["my_declutter", "my_dotfiles", "my_software"]
+            )
 
-            self.window.my_task_selector.addItem("my_test")
-            self.window.run_my_task()
-            self.assertEqual(executed, ["win_test", "my_test"])
+        self.window.clear_output()
+        self.window.execute_task("win_other_helper")
+        self.assertIsNone(self.window._active_worker)
+        self.assertIn(
+            "Helper is disabled: win_other_helper",
+            self.window.output_box.toPlainText(),
+        )
 
     def test_command_worker_execution(self):
         worker = HelperWorker(sys.executable, ["-c", "print('worker_test_line')"])
@@ -214,52 +218,22 @@ class TestGui(unittest.TestCase):
         self.assertIn("worker_test_line", received_lines)
         self.assertEqual(exit_codes, [0])
 
-    def test_command_worker_parse_tasks(self):
-        worker = HelperWorker(
-            sys.executable,
-            ["-c", "print('win_foo\\nmy_bar')"],
-            parse_helpers=True,
-        )
-        loaded = []
-        worker.helpers_loaded.connect(loaded.append)
-        worker.start()
-        worker.wait(5000)
-        self.app.processEvents()
-        self.assertEqual(loaded, [["win_foo", "my_bar"]])
-
-    def test_task_loader_worker_powershell(self):
-        worker = HelperDiscoveryWorker(shell_exe="powershell.exe")
-        self.assertEqual(worker.shell_type, "powershell")
-        self.assertIn("-NoProfile", worker.args)
-        self.assertIn("-ExecutionPolicy", worker.args)
-        self.assertIn("-Command", worker.args)
-        self.assertTrue(any("Get-Command" in arg for arg in worker.args))
-
-    def test_task_loader_worker_bash(self):
-        worker = HelperDiscoveryWorker(shell_exe="bash")
-        self.assertEqual(worker.shell_type, "bash")
-        self.assertEqual(worker.args[0], "-c")
-        self.assertTrue(any("compgen" in arg for arg in worker.args))
-
-    def test_task_loader_worker_custom_script(self):
-        worker_bash = HelperDiscoveryWorker("bash", "echo custom_task")
-        self.assertEqual(worker_bash.shell_type, "bash")
-        self.assertEqual(worker_bash.args, ["-c", "echo custom_task"])
-
-        worker_ps = HelperDiscoveryWorker("powershell.exe", 'Write-Host "test"')
-        self.assertEqual(worker_ps.shell_type, "powershell")
-        self.assertIn('Write-Host `"test`"', worker_ps.args[-1])
-
     def test_build_helper_command(self):
-        bash_cmd, bash_args = build_helper_command("my_task", shell_exe="bash")
-        self.assertEqual(bash_cmd, "bash")
-        self.assertEqual(bash_args[0], "-c")
-        self.assertTrue(bash_args[1].endswith("my_task"))
+        for helper in ("my_declutter", "my_dotfiles", "my_software"):
+            bash_cmd, bash_args = build_helper_command(helper, shell_exe="bash")
+            self.assertEqual(bash_cmd, "bash")
+            self.assertEqual(bash_args[0], "-c")
+            self.assertTrue(bash_args[1].endswith(helper))
 
-        ps_cmd, ps_args = build_helper_command("win_task", shell_exe="powershell.exe")
-        self.assertEqual(ps_cmd, "powershell.exe")
-        self.assertIn("-Command", ps_args)
-        self.assertTrue(ps_args[-1].endswith("& win_task"))
+            ps_cmd, ps_args = build_helper_command(
+                helper, shell_exe="powershell.exe"
+            )
+            self.assertEqual(ps_cmd, "powershell.exe")
+            self.assertIn("-Command", ps_args)
+            self.assertTrue(ps_args[-1].endswith(f"& {helper}"))
+
+        with self.assertRaises(ValueError):
+            build_helper_command("win_task", shell_exe="powershell.exe")
 
     def test_icon_loading(self):
         from cli_helpers.gui import get_app_icon
