@@ -1,48 +1,48 @@
-# cli-helpers
+# shell-profile-helpers
 
-`cli-helpers` is a library for organizing your Bash and PowerShell helper scripts. It automatically loads scripts from the `os/` directory based on your current operating system, and from the `programs/` directory if a specific program is installed. To use the library, you need to load [`init.sh`](init.sh) in your `.bashrc` and [`init.ps1`](init.ps1) in your PowerShell `$PROFILE`. The diagrams below provide an overview of the library's behavior.
+`shell-profile-helpers` is a cross-shell library for organizing Bash/Zsh and PowerShell profile helpers. It loads modular scripts across `os/`, `programs/`, and `completions/` via [`init.sh`](init.sh) in `.bashrc`/`.zshrc` and [`init.ps1`](init.ps1) in PowerShell `$PROFILE`, and supports local Git clones, Bash/Zsh plugin managers (Sheldon, Oh My Bash), and a standalone setup/runner GUI (`shell-profile-helpers.exe`).
 
-**From Bash:**
+**From Bash / Zsh:**
 
-![Bash Flow](docs/bash_flow.svg)
+![](docs/bash_flow.svg)
 
 **From PowerShell:**
 
-![PowerShell Flow](docs/powershell_flow.svg)
+![](docs/powershell_flow.svg)
 
-## Ubuntu Setup
+## Ubuntu / Bash / Zsh Setup
 
-You can use the Bash commands below to fetch, install, and set up `cli-helpers` to be loaded in your `.bashrc`:
+Clone and register in `.bashrc` (or `.zshrc`):
 
 ```bash
-git clone https://github.com/alanlivio/cli-helpers.git ~/src/cli-helpers
-. ~/src/cli-helpers/setup-profile.sh
+git clone https://github.com/alanlivio/shell-profile-helpers.git ~/src/shell-profile-helpers
+~/src/shell-profile-helpers/install.sh
 ```
 
-## Windows Setup
+## Windows / PowerShell Setup
 
-If WinGet or Git is not installed, you may use  [`install-winget.ps1`](install-winget.ps1) and  [`install-git.ps1`](install-git.ps1), or download the [`cli-helpers` GUI](https://github.com/alanlivio/cli-helpers/releases/latest/download/cli-helpers.exe).
+If WinGet or Git is not installed, you may use [`install-winget.ps1`](install-winget.ps1) and [`install-git.ps1`](install-git.ps1), or download [`shell-profile-helpers.exe`](https://github.com/alanlivio/shell-profile-helpers/releases/latest/download/shell-profile-helpers.exe).
 
-To set up `cli-helpers` to be loaded in your `profile.ps1` by calling [`setup-profile.ps1`](setup-profile.ps1):
+Clone and register in `$PROFILE`:
 
 ```powershell
-git clone https://github.com/alanlivio/cli-helpers.git ~\src\cli-helpers
-& ~\src\cli-helpers\setup-profile.ps1
+git clone https://github.com/alanlivio/shell-profile-helpers.git ~\src\shell-profile-helpers
+& ~\src\shell-profile-helpers\install.ps1
 ```
 
 ## `dotfiles` Integration
 
-`cli-helpers` is designed to be paired with a personal and private dotfiles repository located at the same directory level (for example, `~/src/dotfiles` alongside `~/src/cli-helpers`).
+`shell-profile-helpers` is designed to pair with a personal and private `dotfiles` repository located at `~/src/dotfiles`.
 
-`cli-helpers` automatically loads the companion dotfiles repository via `dotfiles/init.sh` or `dotfiles/init.ps1` at the end of its initialization. This allows personal dotfiles to immediately use loaded helpers and override `my_*` lifecycle helpers without needing to manually import `cli-helpers`.
+`shell-profile-helpers` automatically loads `~/src/dotfiles/init.sh` or `~/src/dotfiles/init.ps1` at the end of initialization so personal `dotfiles` can immediately use loaded helpers and override `my_*` lifecycle functions.
 
 ## `my_*` Helpers
 
-`cli-helpers` provides baseline implementations for common lifecycle helpers in [`os/ubu.bash`](os/ubu.bash) and [`os/win.psm1`](os/win.psm1):
+`shell-profile-helpers` provides baseline implementations for common lifecycle helpers in [`os/ubu.sh`](os/ubu.sh) and [`os/win.ps1`](os/win.ps1):
 
 - `my_declutter`: Removes unused packages/shortcuts and hides dotfiles in the user home directory.
-- `my_software`: Installs software Python, and upgrades system packages (`winget upgrade` on Windows, `apt update && apt upgrade` on Ubuntu).
-- `my_dotfiles`: Pulls git updates for the dotfiles repository.
+- `my_software`: Installs software and upgrades system packages (`winget upgrade` on Windows, `apt update && apt upgrade` on Ubuntu).
+- `my_dotfiles`: Pulls Git updates for the `dotfiles` repository.
 
 ## References
 

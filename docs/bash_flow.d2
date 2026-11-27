@@ -23,19 +23,19 @@ sh_init: "init.sh" {
   }
 }
 
-os_dependent: "os/ubu.bash\nos/ubu_code.bash\n..." {
+os_dependent: "os/*.sh\n..." {
   shape: rectangle
 }
 
-program_dependent: "programs/[program].bash\n..." {
+program_dependent: "programs/*.sh\ncompletions/*.sh" {
   shape: rectangle
 }
 
-dotfiles: "../dotfiles/init.sh" {
+dotfiles: "~/src/dotfiles/init.sh" {
   shape: rectangle
 }
 
 bashrc -> sh_init: loads
-sh_init -> os_dependent: "1: loads matching OS script"
-sh_init -> program_dependent: "2: loads if program installed"
+sh_init -> os_dependent: "1: loads OS modules"
+sh_init -> program_dependent: "2: loads program & completion modules"
 sh_init -> dotfiles: "3: loads dotfiles if present"
